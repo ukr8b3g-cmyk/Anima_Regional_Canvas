@@ -8,8 +8,9 @@ It lets you paint color-coded regions directly inside ComfyUI, outputs the color
 
 ## Requirements
 
-- `kohya-ss/ComfyUI-Anima-LLLite`
-- [Sen-sou/Anima-LLLite-Regional-Controlnet](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet) model, for example `anima-lllite-regional-exp-v3.safetensors`
+- Node: [kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite)
+- Model: [anima-lllite-regional-exp-v3.safetensors](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet/resolve/main/anima-lllite-regional-exp-v3.safetensors)
+- Model repository: [Sen-sou/Anima-LLLite-Regional-Controlnet](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet)
 
 ## Install
 
@@ -25,7 +26,7 @@ Restart ComfyUI after installation.
 This node does not include the Anima-LLLite node or the regional ControlNet model. Install them separately:
 
 - [kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite)
-- [Sen-sou/Anima-LLLite-Regional-Controlnet](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet)
+- [anima-lllite-regional-exp-v3.safetensors](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet/resolve/main/anima-lllite-regional-exp-v3.safetensors)
 
 ## Design
 
