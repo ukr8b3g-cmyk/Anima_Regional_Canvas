@@ -41,6 +41,8 @@ This node does not include the Anima-LLLite node or the regional ControlNet mode
    - `RED` / `BLUE` / `YELLOW` / `GREEN` / `MAGENTA`: prompt for each painted region
    - `NEGATIVE`: negative prompt
 4. Paint regions on the canvas with the color buttons.
+   - `Save Canvas`: save the painted canvas as PNG.
+   - `Load Canvas`: load a saved canvas PNG or image back into the canvas.
 5. Connect `IMAGE` to `Apply Anima ControlNet-LLLite image`.
 6. Connect `POSITIVE`, `NEGATIVE`, and `LATENT` to `KSampler`.
 7. For a mask overlay preview, use ComfyUI core `Blend Images`:

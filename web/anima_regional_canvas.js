@@ -304,7 +304,14 @@ app.registerExtension({
       const undo = makeButton("Undo", "Undo");
       const clear = makeButton("Clear", "Clear canvas");
       const resetBrush = makeButton("Reset", "Reset brush settings");
+      const loadCanvasButton = makeButton("Load Canvas", "Load a saved canvas PNG or image");
       const saveCanvasButton = makeButton("Save Canvas", "Save painted color canvas as PNG");
+      const loadCanvasInput = document.createElement("input");
+      loadCanvasInput.type = "file";
+      loadCanvasInput.accept = "image/png,image/webp,image/jpeg,image/*";
+      loadCanvasInput.style.display = "none";
+      loadCanvasInput.addEventListener("pointerdown", stop);
+      loadCanvasInput.addEventListener("mousedown", stop);
       resetBrush.addEventListener("click", () => {
         brush.value = "92";
         syncBrush();
@@ -315,6 +322,8 @@ app.registerExtension({
       toolbar.appendChild(clear);
       toolbar.appendChild(resetBrush);
       toolbar.appendChild(saveCanvasButton);
+      toolbar.appendChild(loadCanvasButton);
+      toolbar.appendChild(loadCanvasInput);
       wrap.appendChild(toolbar);
 
       const main = document.createElement("div");
@@ -335,6 +344,9 @@ app.registerExtension({
       function downloadMaskCanvas() {
         saveData();
         const filename = `anima_regional_canvas_${timestamp()}_${maskCanvas.width}x${maskCanvas.height}.png`;
+        downloadCanvasAs(filename, "image/png");
+      }
+      function downloadCanvasAs(filename, mimeType, quality) {
         const saveUrl = (url) => {
           const a = document.createElement("a");
           a.href = url;
@@ -345,15 +357,54 @@ app.registerExtension({
         };
         if (maskCanvas.toBlob) {
           maskCanvas.toBlob((blob) => {
-            if (!blob) return;
+            if (!blob) {
+              downloadCanvasAs(filename.replace(/\.webp$/i, ".png"), "image/png");
+              return;
+            }
             const url = URL.createObjectURL(blob);
             saveUrl(url);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-          }, "image/png");
+          }, mimeType, quality);
         } else {
-          saveUrl(maskCanvas.toDataURL("image/png"));
+          saveUrl(maskCanvas.toDataURL(mimeType, quality));
         }
       }
+      function loadCanvasFile(file) {
+        if (!file) return;
+        if (!file.type?.startsWith("image/")) return;
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          try {
+            pushHistory();
+            const { w, h } = dims();
+            canvas.width = w;
+            canvas.height = h;
+            maskCanvas.width = w;
+            maskCanvas.height = h;
+            ctx.imageSmoothingEnabled = false;
+            maskCtx.imageSmoothingEnabled = false;
+            ctx.clearRect(0, 0, w, h);
+            maskCtx.clearRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            maskCtx.drawImage(img, 0, 0, w, h);
+            canvasEdited = true;
+            lastInputImageKey = "";
+            saveData();
+            fitCanvas();
+          } finally {
+            URL.revokeObjectURL(url);
+            loadCanvasInput.value = "";
+          }
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          loadCanvasInput.value = "";
+        };
+        img.src = url;
+      }
+      loadCanvasButton.addEventListener("click", () => loadCanvasInput.click());
+      loadCanvasInput.addEventListener("change", () => loadCanvasFile(loadCanvasInput.files?.[0]));
       saveCanvasButton.addEventListener("click", downloadMaskCanvas);
 
       const prompts = document.createElement("div");
