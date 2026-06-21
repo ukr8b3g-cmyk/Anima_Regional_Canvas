@@ -1,6 +1,6 @@
 const { app } = window.comfyAPI.app;
 
-const NODE_NAMES = new Set(["AnimaRegionalCanvas"]);
+const NODE_NAMES = new Set(["AnimaRegionalCanvas", "AnimaRegionalInpaintCanvas"]);
 const COLORS = [
   ["RED", "#ff0000", "red_prompt"],
   ["BLUE", "#0000ff", "blue_prompt"],
@@ -59,8 +59,10 @@ function ensureStyle() {
     .arc-wrap{display:flex;flex-direction:column;gap:6px;min-height:520px;overflow:hidden;color:#d7d7d7;font:12px sans-serif}
     .arc-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .arc-main{display:grid;grid-template-columns:minmax(260px,1fr) 470px;gap:8px;min-height:0;flex:1}
-    .arc-canvasbox{background:#181818;border:1px solid #444;border-radius:6px;display:flex;align-items:center;justify-content:center;min-height:260px;overflow:hidden}
-    .arc-canvas{background:#fff;cursor:crosshair;touch-action:none;max-width:100%;max-height:100%}
+    .arc-canvasbox{background:#181818;border:1px solid #444;border-radius:6px;display:flex;align-items:center;justify-content:center;min-height:260px;overflow:hidden;position:relative}
+    .arc-canvas{background:#fff;cursor:none;touch-action:none;max-width:100%;max-height:100%}
+    .arc-canvas-layer{position:relative;display:inline-block;line-height:0}
+    .arc-brush-preview{position:absolute;border:1px solid rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(0,0,0,.75),0 0 6px rgba(0,0,0,.45);border-radius:50%;pointer-events:none;display:none;box-sizing:border-box;mix-blend-mode:difference;transform:translate(-50%,-50%)}
     .arc-prompts{display:flex;flex-direction:column;gap:5px;min-width:0;background:#242424;padding:6px;border-radius:5px}
     .arc-row{display:grid;grid-template-columns:58px 1fr;gap:6px;align-items:stretch}
     .arc-label{display:flex;align-items:center;justify-content:center;font-weight:700;border-radius:2px;color:#fff;min-height:86px;text-align:center}
@@ -72,6 +74,7 @@ function ensureStyle() {
     .arc-btn:hover{border-color:#999;color:#fff}
     .arc-range{width:110px}
     .arc-small{color:#aaa}
+    .arc-info{color:#b8c7d9;background:#202833;border:1px solid #45515f;border-radius:4px;padding:2px 7px;font-size:11px}
     .arc-settings{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
     .arc-num{width:64px;background:#202020;color:#eee;border:1px solid #555;border-radius:4px;padding:2px 6px;text-align:right;box-sizing:border-box}
     .arc-px{margin-left:-5px;color:#aaa}
@@ -92,9 +95,15 @@ app.registerExtension({
 
       const node = this;
       node.properties = node.properties || {};
-      const legacyInput = node.inputs?.findIndex((input) => input.name === "base_prompt_in");
-      if (legacyInput >= 0) node.removeInput(legacyInput);
       const markDirty = () => app.graph?.setDirtyCanvas?.(true, true);
+      function removeLegacyInputs() {
+        let index = node.inputs?.findIndex((input) => input.name === "base_prompt_in") ?? -1;
+        while (index >= 0) {
+          node.removeInput(index);
+          index = node.inputs?.findIndex((input) => input.name === "base_prompt_in") ?? -1;
+        }
+      }
+      removeLegacyInputs();
       const canvasData = findWidget(node, "canvas_data");
       const widthW = findWidget(node, "width");
       const heightW = findWidget(node, "height");
@@ -155,6 +164,8 @@ app.registerExtension({
       }
 
       hideWidget(canvasData);
+      hideWidget(widthW);
+      hideWidget(heightW);
       hideWidget(brushW);
       hideWidget(regionStrengthW);
       hideWidget(regionalEnabledW);
@@ -174,6 +185,10 @@ app.registerExtension({
       mode.className = "arc-small";
       mode.textContent = "Standard";
       toolbar.appendChild(mode);
+      const sizeLabel = document.createElement("span");
+      sizeLabel.className = "arc-info";
+      sizeLabel.title = "Canvas size, updated from connected image or loaded canvas";
+      toolbar.appendChild(sizeLabel);
 
       let activeColor = COLORS[0][1];
       for (const [label, hex] of COLORS) {
@@ -308,7 +323,7 @@ app.registerExtension({
       const saveCanvasButton = makeButton("Save Canvas", "Save painted color canvas as PNG");
       const loadCanvasInput = document.createElement("input");
       loadCanvasInput.type = "file";
-      loadCanvasInput.accept = "image/png,image/webp,image/jpeg,image/*";
+      loadCanvasInput.accept = "image/png";
       loadCanvasInput.style.display = "none";
       loadCanvasInput.addEventListener("pointerdown", stop);
       loadCanvasInput.addEventListener("mousedown", stop);
@@ -330,12 +345,18 @@ app.registerExtension({
       main.className = "arc-main";
       const canvasBox = document.createElement("div");
       canvasBox.className = "arc-canvasbox";
+      const canvasLayer = document.createElement("div");
+      canvasLayer.className = "arc-canvas-layer";
       const canvas = document.createElement("canvas");
       canvas.className = "arc-canvas";
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       const maskCanvas = document.createElement("canvas");
       const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
-      canvasBox.appendChild(canvas);
+      const brushPreview = document.createElement("div");
+      brushPreview.className = "arc-brush-preview";
+      canvasLayer.appendChild(canvas);
+      canvasLayer.appendChild(brushPreview);
+      canvasBox.appendChild(canvasLayer);
       function timestamp() {
         const d = new Date();
         const pad = (n) => String(n).padStart(2, "0");
@@ -377,7 +398,12 @@ app.registerExtension({
         img.onload = () => {
           try {
             pushHistory();
-            const { w, h } = dims();
+            const w = Math.max(16, Number(img.naturalWidth || img.width || 1024));
+            const h = Math.max(16, Number(img.naturalHeight || img.height || 1024));
+            if (widthW) widthW.value = w;
+            if (heightW) heightW.value = h;
+            lastWidth = w;
+            lastHeight = h;
             canvas.width = w;
             canvas.height = h;
             maskCanvas.width = w;
@@ -467,6 +493,11 @@ app.registerExtension({
           h: Math.max(16, Number(heightW?.value || 1024)),
         };
       }
+      function syncSizeWidgetsToCanvas() {
+        if (widthW && canvas.width) widthW.value = canvas.width;
+        if (heightW && canvas.height) heightW.value = canvas.height;
+        if (sizeLabel && canvas.width && canvas.height) sizeLabel.textContent = `Canvas ${canvas.width} x ${canvas.height}`;
+      }
       function syncCanvasSize(keep = false, force = false) {
         const { w, h } = dims();
         if (!force && w === lastWidth && h === lastHeight && canvas.width === w && canvas.height === h) return;
@@ -526,8 +557,13 @@ app.registerExtension({
         const maxW = Math.max(1, canvasBox.clientWidth - 8);
         const maxH = Math.max(1, canvasBox.clientHeight - 8);
         const scale = Math.min(maxW / canvas.width, maxH / canvas.height);
-        canvas.style.width = `${Math.max(1, Math.floor(canvas.width * scale))}px`;
-        canvas.style.height = `${Math.max(1, Math.floor(canvas.height * scale))}px`;
+        const displayW = Math.max(1, Math.floor(canvas.width * scale));
+        const displayH = Math.max(1, Math.floor(canvas.height * scale));
+        canvas.style.width = `${displayW}px`;
+        canvas.style.height = `${displayH}px`;
+        canvasLayer.style.width = `${displayW}px`;
+        canvasLayer.style.height = `${displayH}px`;
+        syncSizeWidgetsToCanvas();
       }
       function maskHasPaint() {
         try {
@@ -539,7 +575,20 @@ app.registerExtension({
         return false;
       }
       function connectedImageSource() {
-        return null;
+        const input = node.inputs?.find((slot) => slot.name === "image");
+        if (!input?.link || !node.graph?.links) return null;
+        const link = node.graph.links[input.link];
+        const originId = link?.origin_id ?? link?.[1];
+        if (originId == null) return null;
+        const source = node.graph.getNodeById?.(originId);
+        if (!source) return null;
+
+        const imageWidget = source.widgets?.find((widget) => widget.name === "image");
+        const url = inputViewUrl(imageWidget?.value);
+        if (url) return { url, key: `${originId}:${imageWidget.value}` };
+
+        const src = source.imgs?.[0]?.src;
+        return src ? { url: src, key: `${originId}:${src}` } : null;
       }
       function loadConnectedImage(force = false) {
         const source = connectedImageSource();
@@ -577,6 +626,21 @@ app.registerExtension({
           x: (ev.clientX - r.left) * (canvas.width / r.width),
           y: (ev.clientY - r.top) * (canvas.height / r.height),
         };
+      }
+      function updateBrushPreview(ev) {
+        const r = canvas.getBoundingClientRect();
+        const layerRect = canvasLayer.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        const graphScale = layerRect.width / Math.max(1, canvasLayer.offsetWidth || layerRect.width);
+        const scale = (r.width / canvas.width) / Math.max(graphScale, 0.0001);
+        const size = Math.max(1, (Number(brush.value) || 1) * scale);
+        const x = (ev.clientX - layerRect.left) / Math.max(graphScale, 0.0001);
+        const y = (ev.clientY - layerRect.top) / Math.max(graphScale, 0.0001);
+        brushPreview.style.display = "block";
+        brushPreview.style.width = `${size}px`;
+        brushPreview.style.height = `${size}px`;
+        brushPreview.style.left = `${x}px`;
+        brushPreview.style.top = `${y}px`;
       }
       function strokePath(targetCtx, points, alpha = 1) {
         if (!points.length) return;
@@ -616,7 +680,24 @@ app.registerExtension({
 
       let drawing = false;
       let lastPoint = null;
+      let brushAdjust = null;
       canvas.addEventListener("pointerdown", (ev) => {
+        updateBrushPreview(ev);
+        const isWindowsBrushAdjust = ev.altKey && ev.button === 2;
+        const isMacBrushAdjust = ev.ctrlKey && ev.altKey && ev.button === 0;
+        if (isWindowsBrushAdjust || isMacBrushAdjust) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          canvas.setPointerCapture(ev.pointerId);
+          brushAdjust = {
+            pointerId: ev.pointerId,
+            x: ev.clientX,
+            y: ev.clientY,
+            brush: Number(brush.value) || 92,
+            opacity: Number(opacity.value) || 1,
+          };
+          return;
+        }
         if (ev.button !== 0) return;
         ev.preventDefault();
         ev.stopPropagation();
@@ -629,6 +710,16 @@ app.registerExtension({
         scheduleSaveData();
       });
       canvas.addEventListener("pointermove", (ev) => {
+        updateBrushPreview(ev);
+        if (brushAdjust && ev.pointerId === brushAdjust.pointerId) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const dx = ev.clientX - brushAdjust.x;
+          const dy = ev.clientY - brushAdjust.y;
+          setBrush(brushAdjust.brush + dx);
+          syncOpacity(brushAdjust.opacity - dy / 200);
+          return;
+        }
         if (!drawing) return;
         ev.preventDefault();
         const p = eventPoint(ev);
@@ -636,8 +727,21 @@ app.registerExtension({
         lastPoint = p;
         scheduleSaveData();
       });
-      canvas.addEventListener("pointerup", () => { drawing = false; lastPoint = null; saveData(); });
-      canvas.addEventListener("pointercancel", () => { drawing = false; lastPoint = null; saveData(); });
+      const endPointer = (ev) => {
+        if (brushAdjust && ev.pointerId === brushAdjust.pointerId) {
+          brushAdjust = null;
+          markDirty();
+          return;
+        }
+        drawing = false;
+        lastPoint = null;
+        saveData();
+      };
+      canvas.addEventListener("pointerup", endPointer);
+      canvas.addEventListener("pointercancel", endPointer);
+      canvas.addEventListener("pointerenter", updateBrushPreview);
+      canvas.addEventListener("pointerleave", () => { brushPreview.style.display = "none"; });
+      canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
 
       undo.addEventListener("click", () => {
         const prev = history.pop();
@@ -687,8 +791,8 @@ app.registerExtension({
 
       const oldWidth = widthW?.callback;
       const oldHeight = heightW?.callback;
-      if (widthW) widthW.callback = function () { oldWidth?.apply(this, arguments); syncCanvasSize(false, true); if (!canvasEdited) loadConnectedImage(true); };
-      if (heightW) heightW.callback = function () { oldHeight?.apply(this, arguments); syncCanvasSize(false, true); if (!canvasEdited) loadConnectedImage(true); };
+      if (widthW) widthW.callback = function () { oldWidth?.apply(this, arguments); syncSizeWidgetsToCanvas(); };
+      if (heightW) heightW.callback = function () { oldHeight?.apply(this, arguments); syncSizeWidgetsToCanvas(); };
       const sizePoll = setInterval(() => syncCanvasSize(false), 250);
       const sourcePoll = setInterval(() => loadConnectedImage(false), 1000);
       setTimeout(() => loadConnectedImage(false), 100);
@@ -710,6 +814,7 @@ app.registerExtension({
         oldConfigure?.apply(this, arguments);
         node.properties = node.properties || {};
         node.properties.animaPrompts = node.properties.animaPrompts || {};
+        removeLegacyInputs();
         syncPromptTextareas();
       };
       syncPromptTextareas();

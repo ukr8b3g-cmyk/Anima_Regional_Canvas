@@ -1,0 +1,736 @@
+{
+  "id": "406bd9e7-c57d-48e0-a529-b2f8f84cc5c7",
+  "revision": 0,
+  "last_node_id": 84,
+  "last_link_id": 235,
+  "nodes": [
+    {
+      "id": 11,
+      "type": "AnimaLLLiteApply",
+      "pos": [
+        2210,
+        -780
+      ],
+      "size": [
+        340,
+        220
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 213
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 212
+        },
+        {
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            214
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "kohya-ss/ComfyUI-Anima-LLLite",
+        "ver": "c8ad372b3adea39bb1aa37db9e278978bef2c222",
+        "Node name for S&R": "AnimaLLLiteApply"
+      },
+      "widgets_values": [
+        "anima-lllite-regional-exp-v3.safetensors",
+        1,
+        0,
+        0.45,
+        true
+      ]
+    },
+    {
+      "id": 67,
+      "type": "CLIPLoader",
+      "pos": [
+        320,
+        -630
+      ],
+      "size": [
+        330,
+        110
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            211
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.19.3",
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen_3_06b_base.safetensors",
+        "stable_diffusion",
+        "default"
+      ]
+    },
+    {
+      "id": 68,
+      "type": "VAELoader",
+      "pos": [
+        320,
+        -470
+      ],
+      "size": [
+        330,
+        60
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            219,
+            231
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.19.3",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "qwen_image_vae.safetensors"
+      ]
+    },
+    {
+      "id": 83,
+      "type": "LoraLoaderModelOnly",
+      "pos": [
+        320,
+        -360
+      ],
+      "size": [
+        330,
+        90
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 233
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            234
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.1",
+        "Node name for S&R": "LoraLoaderModelOnly"
+      },
+      "widgets_values": [
+        "anima\\anima-turbo-lora-v0.2.safetensors",
+        1
+      ]
+    },
+    {
+      "id": 9,
+      "type": "KSampler",
+      "pos": [
+        2220,
+        -20
+      ],
+      "size": [
+        320,
+        470
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 214
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 215
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 216
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 217
+        },
+        {
+          "label": "Seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            218
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.24.0",
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        211327059901522,
+        "randomize",
+        12,
+        1,
+        "er_sde",
+        "simple",
+        1
+      ]
+    },
+    {
+      "id": 70,
+      "type": "LoadImage",
+      "pos": [
+        -30,
+        -190
+      ],
+      "size": [
+        710,
+        740
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            232
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.24.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
+      "id": 84,
+      "type": "SaveAnimatedWEBP",
+      "pos": [
+        2596.2230623820856,
+        -777.2712345830405
+      ],
+      "size": [
+        1070,
+        1290
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 235
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.25.0",
+        "Node name for S&R": "SaveAnimatedWEBP"
+      },
+      "widgets_values": [
+        "ComfyUI",
+        1,
+        false,
+        80,
+        "default"
+      ]
+    },
+    {
+      "id": 81,
+      "type": "VAEDecode",
+      "pos": [
+        2270,
+        -330
+      ],
+      "size": [
+        210,
+        50
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 218
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 219
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            235
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.24.0",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 80,
+      "type": "AnimaRegionalInpaintCanvas",
+      "pos": [
+        720,
+        -780
+      ],
+      "size": [
+        1420,
+        1310
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 234
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 211
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 231
+        },
+        {
+          "name": "quality_prompt_in",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "scene_prompt_in",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "red_prompt_in",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "blue_prompt_in",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "yellow_prompt_in",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "green_prompt_in",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "magenta_prompt_in",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "negative_prompt_in",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 232
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            212
+          ]
+        },
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            213
+          ]
+        },
+        {
+          "name": "POSITIVE",
+          "type": "CONDITIONING",
+          "links": [
+            215
+          ]
+        },
+        {
+          "name": "NEGATIVE",
+          "type": "CONDITIONING",
+          "links": [
+            216
+          ]
+        },
+        {
+          "name": "INPAINT_LATENT",
+          "type": "LATENT",
+          "links": [
+            217
+          ]
+        },
+        {
+          "name": "INPAINT_MASK",
+          "type": "MASK",
+          "links": []
+        },
+        {
+          "name": "METADATA",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "aux_id": "ukr8b3g-cmyk/Anima_Regional_Canvas",
+        "ver": "1653751008fdcd47aad69fdd7c95daea3ad40b65",
+        "Node name for S&R": "AnimaRegionalInpaintCanvas",
+        "animaPrompts": {
+          "quality_prompt": "masterpiece, absurdres, score_7, anime style",
+          "scene_prompt": "",
+          "red_prompt": "",
+          "blue_prompt": "",
+          "yellow_prompt": "",
+          "green_prompt": "",
+          "magenta_prompt": "",
+          "negative_prompt": "worst quality, low quality, blurry, bad anatomy"
+        },
+        "brushOpacity": 0.975
+      },
+      "widgets_values": [
+        768,
+        768,
+        1,
+        149,
+        0.95,
+        "masterpiece, absurdres, score_7, anime style",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "worst quality, low quality, blurry, bad anatomy",
+        "{\"data_url\":\"data:image/png;base64,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+IHgPwKtgIoAAQIECBAgUFdAAKi7W5MRIECAwFkBzxMgQGADAQFggyUbkQABAgQIECBA4LXATt8KADtt26wECBAgQIAAAQLbCwgA2/8KAGgFVAQIECBAgACB2gICQO39mo4AAQIEjgp4jgABApsICACbLNqYBAgQIECAAAECjwV2+1QA2G3j5iVAgAABAgQIENhaQADYev2GbwVUBAgQIECAAIH6AgJA/R2bkAABAgTeCfieAAECGwkIABst26gECBAgQIAAAQKtwI6VALDj1s1MgAABAgQIECCwrYAAsO3qDd4KqAgQIECAAAECewgIAHvs2ZQECBAg8EzA5wQIENhMQADYbOHGJUCAAAECBAgQ+CWw698CwK6bNzcBAgQIECBAgMCWAgLAlms3dCugIkCAAAECBAjsIyAA7LNrkxIgQIDAVwE1AQIENhQQADZcupEJECBAgAABArsL7Dy/ALDz9s1OgAABAgQIECCwnYAAsN3KDdwKqAgQIECAAAECewkIAHvt27QECBAg8EfAvwQIENhUQADYdPHGJkCAAAECBAjsKrD73ALA7r8B5idAgAABAgQIENhKQADYat2GbQVUBAgQIECAAIH9BASA/XZuYgIECBAgQIAAgY0FBICNl290AgQIECBAgMBuAub9+BAA/BYQIECAAAECBAgQ2EhAANho2Ub9LOBnAgQIECBAgMCeAgLAnns3NQECBPYVMDkBAgQ2FxAANv8FMD4BAgQIECBAYBcBc/4SEAB+OfibAAECBAgQIECAwBYCAsAWazZkK6AiQIAAAQIECOwrIADsu3uTEyBAYD8BExMgQICA/zegfgcIECBAgAABAgTqC5jwn4D/C8A/Cz8RIECAAAECBAgQKC8gAJRfsQFbARUBAgQIECBAYG8BAWDv/ZueAAEC+wiYlAABAgT+ExAA/mPwFwECBAgQIECAQFUBc7UCAkDroSJAgAABAgQIECBQWkAAKL1ew7UCKgIECBAgQIAAAQHA7wABAgQI1BcwIQECBAj8FRAA/lL4gQABAgQIECBAoJqAeb4LCADfTXxCgAABAgQIECBAoKyAAFB2tQZrBVQECBAgQIAAAQI/BQSAnwr+ECBAgEBdAZMRIECAQCMgADQcCgIECBAgQIAAgSoC5ngsIAA8dvEpAQIECBAgQIAAgZICAkDJtRqqFVARIECAAAECBAj8ERAA/kj4lwABAgTqCZiIAAECBL4JCADfSHxAgAABAgQIECCQXUD/zwUEgOc2viFAgAABAgQIECBQTkAAKLdSA7UCKgIECBAgQIAAgc8CAsBnDT8TIECAQB0BkxAgQIDAQwEB4CGLDwkQIECAAAECBLIK6Pu1gADw2se3BAgQIECAAAECBEoJCACl1mmYVkBFgAABAgQIECDwVUAA+CqiJkCAAIH8AiYgQIAAgacCAsBTGl8QIECAAAECBAhkE9DvewEB4L2RJwgQIECAAAECBAiUERAAyqzSIK2AigABAgQIECBA4JGAAPBIxWcECBAgkFdA5wQIECDwUkAAeMnjSwIECBAgQIAAgSwC+jwmIAAcc/IUAQIECBAgQIAAgRICAkCJNRqiFVARIECAAAECBAg8ExAAnsn4nAABAgTyCeiYAAECBN4KCABviTxAgAABAgQIECAQXUB/xwUEgONWniRAgAABAgQIECCQXkAASL9CA7QCKgIECBAgQIAAgVcCAsArHd8RIECAQB4BnRIgQIDAIQEB4BCThwgQIECAAAECBKIK6OucgABwzsvTBAgQIECAAAECBFILCACp16f5VkBFgAABAgQIECDwTkAAeCfkewIECBCIL6BDAgQIEDgsIAAcpvIgAQIECBAgQIBANAH9nBcQAM6beYMAAQIECBAgQIBAWgEBIO3qNN4KqAgQIECAAAECBI4ICABHlDxDgAABAnEFdEaAAAECpwQEgFNcHiZAgAABAgQIEIgioI9rAgLANTdvESBAgAABAgQIEEgpIACkXJumWwEVAQIECBAgQIDAUQEB4KiU5wgQIEAgnoCOCBAgQOC0gABwmswLBAgQIECAAAECqwXcf11AALhu500CBAgQIECAAAEC6QQEgHQr03AroCJAgAABAgQIEDgjIACc0fIsAQIECMQR0AkBAgQIXBIQAC6xeYkAAQIECBAgQGCVgHvvCQgA9/y8TYAAAQIECBAgQCCVgACQal2abQVUBAgQIECAAAECZwUEgLNinidAgACB9QI6IECAAIHLAgLAZTovEiBAgAABAgQIzBZw330BAeC+oRMIECBAgAABAgQIpBEQANKsSqOtgIoAAQIECBAgQOCKgABwRc07BAgQILBOwM0ECBAgcEtAALjF52UCBAgQIECAAIFZAu7pIyAA9HF0CgECBAgQIECAAIEUAgJAijVpshVQESBAgAABAgQIXBUQAK7KeY8AAQIE5gu4kQABAgRuCwgAtwkdQIAAAQIECBAgMFrA+f0EBIB+lk4iQIAAAQIECBAgEF5AAAi/Ig22AioCBAgQIECAAIE7AgLAHT3vEiBAgMA8ATcRIECAQBcBAaALo0MIECBAgAABAgRGCTi3r4AA0NfTaQQIECBAgAABAgRCCwgAodejuVZARYAAAQIECBAgcFdAALgr6H0CBAgQGC/gBgIECBDoJiAAdKN0EAECBAgQIECAQG8B5/UXEAD6mzqRAAECBAgQIECAQFgBASDsajTWCqgIECBAgAABAgR6CAgAPRSdQYAAAQLjBJxMgAABAl0FBICunA4jQIAAAQIECBDoJeCcMQICwBhXpxIgQIAAAQIECBAIKSAAhFyLploBFQECBAgQIECAQC8BAaCXpHMIECBAoL+AEwkQIECgu4AA0J3UgQQIECBAgAABAncFvD9OQAAYZ+tkAgQIECBAgAABAuEEBIBwK9FQK6AiQIAAAQIECBDoKSAA9NR0FgECBAj0E3ASAQIECAwREACGsDqUAAECBAgQIEDgqoD3xgoIAGN9nU6AAAECBAgQIEAglIAAEGodmmkFVAQIECBAgAABAr0FBIDeos4jQIAAgfsCTiBAgACBYQICwDBaBxMgQIAAAQIECJwV8Px4AQFgvLEbCBAgQIAAAQIECIQREADCrEIjrYCKAAECBAgQIEBghIAAMELVmQQIECBwXcCbBAgQIDBUQAAYyutwAgQIECBAgACBowKemyMgAMxxdgsBAgQIECBAgACBEAICQIg1aKIVUBEgQIAAAQIECIwSEABGyTqXAAECBM4LeIMAAQIEhgsIAMOJXUCAAAECBAgQIPBOwPfzBASAedZuIkCAAAECBAgQILBcQABYvgINtAIqAgQIECBAgACBkQICwEhdZxMgQIDAcQFPEiBAgMAUAQFgCrNLCBAgQIAAAQIEngn4fK6AADDX220ECBAgQIAAAQIElgoIAEv5Xd4KqAgQIECAAAECBEYLCACjhZ1PgAABAu8FPEGAAAEC0wQEgGnULiJAgAABAgQIEPgqoJ4vIADMN3cjAQIECBAgQIAAgWUCAsAyehe3AioCBAgQIECAAIEZAgLADGV3ECBAgMBzAd8QIECAwFQBAWAqt8sIECBAgAABAgT+CPh3jYAAsMbdrQQIECBAgAABAgSWCAgAS9hd2gqoCBAgQIAAAQIEZgkIALOk3UOAAAEC3wV8QoAAAQLTBQSA6eQuJECAAAECBAgQILBOQABYZ+9mAgQIECBAgAABAtMFBIDp5C5sBVQECBAgQIAAAQIzBQSAmdruIkCAAIF/An4iQIAAgSUCAsASdpcSIECAAAECBPYVMPlaAQFgrb/bCRAgQIAAAQIECEwVEACmcrusFVARIECAAAECBAjMFhAAZou7jwABAgQ+PhgQIECAwDIBAWAZvYsJECBAgAABAvsJmHi9gACwfgc6IECAAAECBAgQIDBNQACYRu2iVkBFgAABAgQIECCwQkAAWKHuTgIECOwsYHYCBAgQWCogACzldzkBAgQIECBAYB8Bk8YQEABi7EEXBAgQIECAAAECBKYICABTmF3SCqgIECBAgAABAgRWCQgAq+TdS4AAgR0FzEyAAAECywUEgOUr0AABAgQIECBAoL6ACeMICABxdqETAgQIECBAgAABAsMFBIDhxC5oBVQECBAgQIAAAQIrBQSAlfruJkCAwE4CZiVAgACBEAICQIg1aIIAAQIECBAgUFfAZLEEBIBY+9ANAQIECBAgQIAAgaECAsBQXoe3AioCBAgQIECAAIHVAgLA6g24nwABAjsImJEAAQIEwggIAGFWoRECBAgQIECAQD0BE8UTEADi7URHBAgQIECAAAECBIYJCADDaB3cCqgIECBAgAABAgQiCAgAEbagBwIECFQWMBsBAgQIhBIQAEKtQzMECBAgQIAAgToCJokpIADE3IuuCBAgQIAAAQIECAwREACGsDq0FVARIECAAAECBAhEERAAomxCHwQIEKgoYCYCBAgQCCcgAIRbiYYIECBAgAABAvkFTBBXQACIuxudESBAgAABAgQIEOguIAB0J3VgK6AiQIAAAQIECBCIJCAARNqGXggQIFBJwCwECBAgEFJAAAi5Fk0RIECAAAECBPIK6Dy2gAAQez+6I0CAAAECBAgQINBVQADoyumwVkBFgAABAgQIECAQTUAAiLYR/RAgQKCCgBkIECBAIKyAABB2NRojQIAAAQIECOQT0HF8AQEg/o50SIAAAQIECBAgQKCbgADQjdJBrYCKAAECBAgQIEAgooAAEHEreiJAgEBmAb0TIECAQGgBASD0ejRHgAABAgQIEMgj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AsujBAgQIECAAIFIAnohcEVAALii5h0CBAgQIECAAAECSQUEgKSLa9tWESBAgAABAgQIEDgmIAAcc/IUAQIEYgroigABAgQInBQQAE6CeZwAAQIECBAgEEFADwSuCggAV+W8R4AAAQIECBAgQCChgACQcGltyyoCBAgQIECAAAECxwUEgONWniRAgEAsAd0QIECAAIELAgLABTSvECBAgAABAgRWCribwB0BAeCOnncJECBAgAABAgQIJBMQAJItrG1XRYAAAQIECBAgQOCcgABwzsvTBAgQiCGgCwIECBAgcFFAALgI5zUCBAgQIECAwAoBdxK4KyAA3BX0PgECBAgQIECAAIFEAgJAomW1raoIECBAgAABAgQInBcQAM6beYMAAQJrBdxOgAABAgRuCAgAN/C8SoAAAQIECBCYKeAuAj0EBIAeis4gQIAAAQIECBAgkERAAEiyqLZNFQECBAgQIECAAIFrAgLANTdvESBAYI2AWwkQIECAwE0BAeAmoNcJECBAgAABAjME3EGgl4AA0EvSOQQIECBAgAABAgQSCAgACZbUtqgiQIAAAQIECBAgcF1AALhu500CBAjMFXAbAQIECBDoICAAdEB0BAECBAgQIEBgpICzCfQUEAB6ajqLAAECBAgQIECAQHABASD4gtr2VAQIECBAgAABAgTuCQgA9/y8TYAAgTkCbiFAgAABAp0EBIBOkI4hQIAAAQIECIwQcCaB3gICQG9R5xEgQIAAAQIECBAILCAABF5O25qKAAECBAgQIECAwH0BAeC+oRMIECAwVsDpBAgQIECgo4AA0BHTUQQIECBAgACBngLOIjBCQAAYoepMAgQIECBAgAABAkEFBICgi2nbUhEgQIAAAQIECBDoIyAA9HF0CgECBMYIOJUAAQIECHQWEAA6gzqOAAECBAgQINBDwBkERgkIAKNknUuAAAECBAgQIEAgoIAAEHApbUsqAgQIECBAgAABAv0EBIB+lk4iQIBAXwGnESBAgACBAQICwABURxIgQIAAAQIE7gh4l8BIAQFgpK6zCRAgQIAAAQIECAQTEACCLaRtR0WAAAECBAgQIECgr4AA0NfTaQQIEOgj4BQCBAgQIDBIQAAYBOtYAgQIECBAgMAVAe8QGC0gAIwWdj4BAgQIECBAgACBQAICQKBltK2oCBAgQIAAAQIECPQXEAD6mzqRAAEC9wS8TYAAAQIEBgoIAANxHU2AAAECBAgQOCPgWQIzBASAGcruIECAAAECBAgQIBBEQAAIsoi2DRUBAgQIECBAgACBMQICwBhXpxIgQOCagLcIECBAgMBgAQFgMLDjCRAgQIAAAQJHBDxDYJaAADBL2j0ECBAgQIAAAQIEAggIAAGW0LagIkCAAAECBAgQIDBOQAAYZ+tkAgQInBPwNAECBAgQmCAgAExAdgUBAgQIECBA4JWA7wjMFBAAZmq7iwABAgQIECBAgMBiAQFg8QLa61UECBAgQIAAAQIExgoIAGN9nU6AAIFjAp4iQIAAAQKTBASASdCuIUCAAAECBAg8EvAZgdkCAsBscfcRIECAAAECBAgQWCggACzEb69WESBAgAABAgQIEBgvIACMN3YDAQIEXgv4lgABAgQITBQQACZiu4oAAQIECBAg8FnAzwRWCAgAK9TdSYAAAQIECBAgQGCRgACwCL69VkWAAAECBAgQIEBgjoAAMMfZLQQIEHgs4FMCBAgQIDBZQACYDO46AgQIECBAgMBPAX8IrBIQAFbJu5cAAQIECBAgQIDAAgEBYAF6e6WKAAECBAgQIECAwDwBAWCetZsIECDQCqgIECBAgMACAQFgAborCRAgQIAAgb0FTE9gpYAAsFLf3QQIECBAgAABAgQmCwgAk8Hb61QECBAgQIAAAQIE5goIAHO93UaAAIFfAv4mQIAAAQKLBASARfCuJUCAAAECBPYUMDWB1QICwOoNuJ8AAQIECBAgQIDARAEBYCJ2e5WKAAECBAgQIECAwHwBAWC+uRsJENhdwPwECBAgQGChgACwEN/VBAgQIECAwF4CpiUQQUAAiLAFPRAgQIDSdREqAAAIw0lEQVQAAQIECBCYJCAATIJur1ERIECAAAECBAgQWCMgAKxxdysBArsKmJsAAQIECCwWEAAWL8D1BAgQIECAwB4CpiQQRUAAiLIJfRAgQIAAAQIECBCYICAATEBur1ARIECAAAECBAgQWCcgAKyzdzMBArsJmJcAAQIECAQQEAACLEELBAgQIECAQG0B0xGIJCAARNqGXggQIECAAAECBAgMFhAABgO3x6sIECBAgAABAgQIrBUQANb6u50AgV0EzEmAAAECBIIICABBFqENAgQIECBAoKaAqQhEExAAom1EPwQIECBAgAABAgQGCggA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\"}",
+        true,
+        6,
+        ""
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 66,
+      "type": "UNETLoader",
+      "pos": [
+        320,
+        -770
+      ],
+      "size": [
+        330,
+        90
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "showAdvanced": false,
+      "inputs": [
+        {
+          "label": "Model",
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            233
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.19.3",
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "ANIMA\\waiANIMA_v10Base10.safetensors",
+        "default"
+      ]
+    }
+  ],
+  "links": [
+    [
+      211,
+      67,
+      0,
+      80,
+      1,
+      "CLIP"
+    ],
+    [
+      212,
+      80,
+      0,
+      11,
+      1,
+      "IMAGE"
+    ],
+    [
+      213,
+      80,
+      1,
+      11,
+      0,
+      "MODEL"
+    ],
+    [
+      214,
+      11,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      215,
+      80,
+      2,
+      9,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      216,
+      80,
+      3,
+      9,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      217,
+      80,
+      4,
+      9,
+      3,
+      "LATENT"
+    ],
+    [
+      218,
+      9,
+      0,
+      81,
+      0,
+      "LATENT"
+    ],
+    [
+      219,
+      68,
+      0,
+      81,
+      1,
+      "VAE"
+    ],
+    [
+      231,
+      68,
+      0,
+      80,
+      2,
+      "VAE"
+    ],
+    [
+      232,
+      70,
+      0,
+      80,
+      11,
+      "IMAGE"
+    ],
+    [
+      233,
+      66,
+      0,
+      83,
+      0,
+      "MODEL"
+    ],
+    [
+      234,
+      83,
+      0,
+      80,
+      0,
+      "MODEL"
+    ],
+    [
+      235,
+      81,
+      0,
+      84,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "Models / Input Image",
+      "bounding": [
+        290,
+        -860,
+        380,
+        610
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "Anima Regional Inpaint Canvas",
+      "bounding": [
+        700,
+        -860,
+        1470,
+        1420
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "Generate / Save",
+      "bounding": [
+        2190,
+        -860,
+        1520,
+        1420
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6050000000000106,
+      "offset": [
+        451.2161462035905,
+        1076.52170994481
+      ]
+    },
+    "frontendVersion": "1.45.15"
+  },
+  "version": 0.4
+}

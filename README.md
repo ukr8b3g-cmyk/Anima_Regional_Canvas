@@ -31,10 +31,20 @@ This node does not include the Anima-LLLite node or the regional ControlNet mode
 - Recommended base model: [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima)
 - [anima-lllite-regional-exp-v3.safetensors](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet/resolve/main/anima-lllite-regional-exp-v3.safetensors)
 
+Example workflows are included in `workflows/`:
+
+- `Anima_Regional_Canvas_Test.json`
+- `Anima_Regional_Inpaint_Canvas_Test.json`
+
 ## Usage
 
-1. Add `Anima Regional Canvas`.
-2. Set the canvas `width` and `height`.
+1. Add one of the canvas nodes:
+   - `Anima Regional Canvas`: normal regional generation.
+   - `Anima Regional Inpaint Canvas`: regional inpaint generation from an optional input image.
+2. Check the canvas size shown in the `Canvas width x height` info badge.
+   - The size is updated from `Load Canvas` or a connected image.
+   - For ANIMA workflows, `1024x1024` or larger is recommended. `768x768` works, but it can be too low-resolution for detailed ANIMA output.
+   - For wide images, `1536x1024` is a practical starting point.
 3. Enter prompts:
    - `QUALITY`: quality/style tags, for example `masterpiece, absurdres, score_7, anime style`
    - `SCENE`: count, character names, background, and situation, for example `2girls, cirno, reimu, cafe`
@@ -43,6 +53,11 @@ This node does not include the Anima-LLLite node or the regional ControlNet mode
 4. Paint regions on the canvas with the color buttons.
    - `Save Canvas`: save the painted canvas as PNG.
    - `Load Canvas`: load a saved canvas PNG or image back into the canvas.
+   - Brush size can be changed with the `Brush` number box or slider.
+   - Windows shortcut: `Alt + right-drag` on the canvas. Move left/right to change brush size.
+   - Mac shortcut: `Control + Option + left-drag` on the canvas. Move left/right to change brush size.
+   - Moving up/down during the shortcut adjusts brush opacity.
+   - The brush circle preview shows the current brush size on the canvas.
 5. Connect `IMAGE` to `Apply Anima ControlNet-LLLite image`.
 6. Connect `POSITIVE`, `NEGATIVE`, and `LATENT` to `KSampler`.
 7. For a mask overlay preview, use ComfyUI core `Blend Images`:
@@ -50,6 +65,28 @@ This node does not include the Anima-LLLite node or the regional ControlNet mode
    - `MASK_PREVIEW` -> `Blend Images image2`
    - `Blend Images` -> `Preview Image`
 8. Save the final image with `Save WEBP Meta` if metadata output is needed.
+
+## Node Variants
+
+### Anima Regional Canvas
+
+Use this for normal generation.
+
+- `IMAGE` outputs the painted color mask for `Apply Anima ControlNet-LLLite image`.
+- `LATENT` outputs an empty latent using the canvas size.
+- Paint red, blue, yellow, green, or magenta regions and enter matching region prompts.
+
+### Anima Regional Inpaint Canvas
+
+Use this for inpaint generation.
+
+- Connect an input image to `image` when you want to inpaint over an existing image.
+- Connect `vae` when using the node's `INPAINT_LATENT` output.
+- The connected image is shown on the canvas automatically when available.
+- Paint only the areas that should be controlled or repainted.
+- White/unpainted areas are treated as the keep/base area.
+- `grow_mask_by` expands the inpaint mask slightly to reduce hard edges.
+- If no `image` and `vae` are connected, the node falls back to an empty latent, similar to the normal node.
 
 ## Design
 
@@ -64,6 +101,8 @@ This node does not include the Anima-LLLite node or the regional ControlNet mode
 
 ## Outputs
 
+### Anima Regional Canvas
+
 - `IMAGE`: color mask image for `Apply Anima ControlNet-LLLite image`
 - `MODEL`: passthrough model
 - `POSITIVE`: masked conditioning for `KSampler positive`
@@ -71,6 +110,16 @@ This node does not include the Anima-LLLite node or the regional ControlNet mode
 - `LATENT`: empty latent using the canvas size
 - `METADATA`: prompt metadata string
 - `MASK_PREVIEW`: preview-only image
+
+### Anima Regional Inpaint Canvas
+
+- `IMAGE`: color mask image for `Apply Anima ControlNet-LLLite image`
+- `MODEL`: passthrough model
+- `POSITIVE`: masked conditioning for `KSampler positive`
+- `NEGATIVE`: conditioning for `KSampler negative`
+- `INPAINT_LATENT`: inpaint latent when `image` and `vae` are connected; otherwise empty latent
+- `INPAINT_MASK`: inpaint mask generated from painted regions
+- `METADATA`: prompt metadata string
 
 ## Compatibility
 
@@ -102,6 +151,19 @@ Anima Regional Canvas LATENT -> KSampler latent_image
 KSampler LATENT -> VAE Decode -> Save WEBP Meta
 ```
 
+## Inpaint Connection
+
+```text
+Load Image IMAGE -> Anima Regional Inpaint Canvas image
+Load VAE VAE -> Anima Regional Inpaint Canvas vae
+Anima Regional Inpaint Canvas IMAGE -> Apply Anima ControlNet-LLLite image
+Apply Anima ControlNet-LLLite MODEL -> KSampler model
+Anima Regional Inpaint Canvas POSITIVE -> KSampler positive
+Anima Regional Inpaint Canvas NEGATIVE -> KSampler negative
+Anima Regional Inpaint Canvas INPAINT_LATENT -> KSampler latent_image
+KSampler LATENT -> VAE Decode -> Save WEBP Meta
+```
+
 ## Connection Chart
 
 ```mermaid
@@ -120,12 +182,59 @@ flowchart LR
   Canvas -- MASK_PREVIEW --> Preview["Preview Image optional"]
 ```
 
+## Inpaint Connection Chart
+
+```mermaid
+flowchart LR
+  Model["Load Diffusion Model"] --> Canvas["Anima Regional Inpaint Canvas"]
+  Clip["Load CLIP"] --> Canvas
+  Image["Load Image"] --> Canvas
+  VAE["Load VAE"] --> Canvas
+  VAE --> Decode["VAE Decode"]
+  Canvas -- IMAGE --> LLLite["Apply Anima ControlNet-LLLite"]
+  Canvas -- MODEL --> LLLite
+  LLLite -- MODEL --> KSampler
+  Canvas -- POSITIVE --> KSampler
+  Canvas -- NEGATIVE --> KSampler
+  Canvas -- INPAINT_LATENT --> KSampler
+  KSampler -- LATENT --> Decode
+  Decode -- IMAGE --> Save["Save WEBP Meta"]
+  Canvas -- INPAINT_MASK --> MaskToImage["Convert Mask to Image optional"]
+  MaskToImage --> MaskPreview["Preview Image optional"]
+```
+
 ## UI Prompt Fields
 
 - `QUALITY`: quality and style tags, for example `masterpiece, absurdres, score_7, anime style`.
-- `SCENE`: count, subject names, background, and situation, for example `2girls, cirno, reimu, cafe`.
+- `SCENE`: global composition, count, subject names, pose, background, and situation, for example `1girl, full body, standing with arms out, outdoor, blue sky, green field`.
 - `RED` / `BLUE` / `YELLOW` / `GREEN` / `MAGENTA`: prompt for each painted region.
 - `NEGATIVE`: negative prompt.
+
+Common prompt rule:
+
+- Put the overall scene in `SCENE`.
+- Put region-specific details in the matching color prompt.
+- Leave unused color prompts empty.
+- White/unpainted areas use the default `QUALITY` + `SCENE` conditioning.
+
+Example:
+
+```text
+SCENE:
+1girl, full body, standing with arms out, outdoor, blue sky, green field
+
+YELLOW:
+long blonde twin tails, large fluffy hair
+
+MAGENTA:
+pink one-piece dress
+
+BLUE:
+blue eyes
+
+GREEN:
+green grass field
+```
 
 ## Colors
 
