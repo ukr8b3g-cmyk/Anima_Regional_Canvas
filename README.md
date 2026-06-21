@@ -43,8 +43,7 @@ Example workflows are included in `workflows/`:
    - `Anima Regional Inpaint Canvas`: regional inpaint generation from an optional input image.
 2. Check the canvas size shown in the `Canvas width x height` info badge.
    - The size is updated from `Load Canvas` or a connected image.
-   - For ANIMA workflows, `1024x1024` or larger is recommended. `768x768` works, but it can be too low-resolution for detailed ANIMA output.
-   - For wide images, `1536x1024` is a practical starting point.
+   - For ANIMA workflows, a larger size is recommended. Smaller sizes work, but they may be too low-resolution for detailed ANIMA output.
 3. Enter prompts:
    - `QUALITY`: quality/style tags, for example `masterpiece, absurdres, score_7, anime style`
    - `SCENE`: count, character names, background, and situation, for example `2girls, cirno, reimu, cafe`
