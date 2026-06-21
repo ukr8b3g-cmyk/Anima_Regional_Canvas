@@ -9,6 +9,22 @@ It lets you paint color-coded regions directly inside ComfyUI, outputs the color
 - `kohya-ss/ComfyUI-Anima-LLLite`
 - `Sen-sou/Anima-LLLite-Regional-Controlnet` model, for example `anima-lllite-regional-exp-v3.safetensors`
 
+## Install
+
+Clone this repository into ComfyUI's `custom_nodes` folder:
+
+```powershell
+cd D:\Codex\ComfyUI\custom_nodes
+git clone https://github.com/ukr8b3g-cmyk/Anima_Regional_Canvas.git
+```
+
+Restart ComfyUI after installation.
+
+This node does not include the Anima-LLLite node or the regional ControlNet model. Install them separately:
+
+- [kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite)
+- [Sen-sou/Anima-LLLite-Regional-Controlnet](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet/tree/main)
+
 ## Design
 
 - `Apply Anima ControlNet-LLLite` stays separate.
