@@ -147,7 +147,7 @@ Apply Anima ControlNet-LLLite MODEL -> KSampler model
 Anima Regional Canvas POSITIVE -> KSampler positive
 Anima Regional Canvas NEGATIVE -> KSampler negative
 Anima Regional Canvas LATENT -> KSampler latent_image
-KSampler LATENT -> VAE Decode -> Save WEBP Meta
+KSampler LATENT -> VAE Decode -> Save Image
 ```
 
 ## Inpaint Connection
@@ -160,7 +160,7 @@ Apply Anima ControlNet-LLLite MODEL -> KSampler model
 Anima Regional Inpaint Canvas POSITIVE -> KSampler positive
 Anima Regional Inpaint Canvas NEGATIVE -> KSampler negative
 Anima Regional Inpaint Canvas INPAINT_LATENT -> KSampler latent_image
-KSampler LATENT -> VAE Decode -> Save WEBP Meta
+KSampler LATENT -> VAE Decode -> Save Image
 ```
 
 ## Standard Connection Chart
@@ -177,8 +177,12 @@ flowchart LR
   Canvas -- NEGATIVE --> KSampler
   Canvas -- LATENT --> KSampler
   KSampler -- LATENT --> Decode
-  Decode -- IMAGE --> Save["Save WEBP Meta"]
+  Decode -- IMAGE --> Save["Save Image"]
   Canvas -- MASK_PREVIEW --> Preview["Preview Image optional"]
+  classDef canvasNode fill:#0f4f3a,stroke:#69d89b,color:#ffffff
+  classDef llliteNode fill:#50321a,stroke:#ffb45c,color:#ffffff
+  class Canvas canvasNode
+  class LLLite llliteNode
 ```
 
 ## Inpaint Connection Chart
@@ -197,9 +201,13 @@ flowchart LR
   Canvas -- NEGATIVE --> KSampler
   Canvas -- INPAINT_LATENT --> KSampler
   KSampler -- LATENT --> Decode
-  Decode -- IMAGE --> Save["Save WEBP Meta"]
+  Decode -- IMAGE --> Save["Save Image"]
   Canvas -- INPAINT_MASK --> MaskToImage["Convert Mask to Image optional"]
   MaskToImage --> MaskPreview["Preview Image optional"]
+  classDef canvasNode fill:#0f4f3a,stroke:#69d89b,color:#ffffff
+  classDef llliteNode fill:#50321a,stroke:#ffb45c,color:#ffffff
+  class Canvas canvasNode
+  class LLLite llliteNode
 ```
 
 ## UI Prompt Fields
