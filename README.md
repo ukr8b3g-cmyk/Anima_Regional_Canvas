@@ -163,7 +163,7 @@ Anima Regional Inpaint Canvas INPAINT_LATENT -> KSampler latent_image
 KSampler LATENT -> VAE Decode -> Save WEBP Meta
 ```
 
-## Connection Chart
+## Standard Connection Chart
 
 ```mermaid
 flowchart LR
