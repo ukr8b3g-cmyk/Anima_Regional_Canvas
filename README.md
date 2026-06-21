@@ -31,6 +31,24 @@ This node does not include the Anima-LLLite node or the regional ControlNet mode
 - Recommended base model: [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima)
 - [anima-lllite-regional-exp-v3.safetensors](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet/resolve/main/anima-lllite-regional-exp-v3.safetensors)
 
+## Usage
+
+1. Add `Anima Regional Canvas`.
+2. Set the canvas `width` and `height`.
+3. Enter prompts:
+   - `QUALITY`: quality/style tags, for example `masterpiece, absurdres, score_7, anime style`
+   - `SCENE`: count, character names, background, and situation, for example `2girls, cirno, reimu, cafe`
+   - `RED` / `BLUE` / `YELLOW` / `GREEN` / `MAGENTA`: prompt for each painted region
+   - `NEGATIVE`: negative prompt
+4. Paint regions on the canvas with the color buttons.
+5. Connect `IMAGE` to `Apply Anima ControlNet-LLLite image`.
+6. Connect `POSITIVE`, `NEGATIVE`, and `LATENT` to `KSampler`.
+7. For a mask overlay preview, use ComfyUI core `Blend Images`:
+   - generated image -> `Blend Images image1`
+   - `MASK_PREVIEW` -> `Blend Images image2`
+   - `Blend Images` -> `Preview Image`
+8. Save the final image with `Save WEBP Meta` if metadata output is needed.
+
 ## Design
 
 - `Apply Anima ControlNet-LLLite` stays separate.
