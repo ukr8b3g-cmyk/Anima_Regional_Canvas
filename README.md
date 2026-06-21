@@ -112,3 +112,13 @@ flowchart LR
 - `GREEN`
 - `MAGENTA`
 - white background uses the default `QUALITY` + `SCENE` conditioning
+
+## Acknowledgements
+
+- [kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite) for the Anima-LLLite ComfyUI node.
+- [Sen-sou/Anima-LLLite-Regional-Controlnet](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet) for the regional ControlNet model.
+- ComfyUI and its community.
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
