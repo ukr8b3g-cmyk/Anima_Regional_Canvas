@@ -3,13 +3,14 @@
 
 
 
-Canvas node for Anima-LLLite Regional ControlNet workflows.
+An ANIMA-focused custom node for Anima-LLLite Regional ControlNet workflows.
 
-It lets you paint color-coded regions directly inside ComfyUI, outputs the color mask image for `Apply Anima ControlNet-LLLite`, and generates masked conditioning from matching region prompts.
+It is designed for ANIMA workflows using the Anima base model, Anima-LLLite, and the Anima-LLLite Regional ControlNet model. The node lets you paint color-coded regions directly inside ComfyUI, outputs the color mask image for `Apply Anima ControlNet-LLLite`, and generates masked conditioning from matching region prompts.
 
 ## Requirements
 
 - Node: [kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite)
+- Recommended base model: [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima)
 - Model: [anima-lllite-regional-exp-v3.safetensors](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet/resolve/main/anima-lllite-regional-exp-v3.safetensors)
 - Model repository: [Sen-sou/Anima-LLLite-Regional-Controlnet](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet)
 
@@ -27,6 +28,7 @@ Restart ComfyUI after installation.
 This node does not include the Anima-LLLite node or the regional ControlNet model. Install them separately:
 
 - [kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite)
+- Recommended base model: [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima)
 - [anima-lllite-regional-exp-v3.safetensors](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet/resolve/main/anima-lllite-regional-exp-v3.safetensors)
 
 ## Design
