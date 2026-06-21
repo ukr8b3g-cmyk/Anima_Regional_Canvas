@@ -1,5 +1,6 @@
 # Anima Regional Canvas
-<img width="1849" height="776" alt="Clip_6" src="https://github.com/user-attachments/assets/84d3a6b0-ad9c-47ba-822f-7d2bc6c21c3a" />
+<img width="1712" height="745" alt="Clip_7" src="https://github.com/user-attachments/assets/73c40c9b-d6b1-4eab-a3e7-0baf36a4f8af" />
+
 
 
 Canvas node for Anima-LLLite Regional ControlNet workflows.
