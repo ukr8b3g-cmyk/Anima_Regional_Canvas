@@ -17,6 +17,10 @@ This node does not include the Anima-LLLite node or the regional ControlNet mode
 
 ## Install
 
+Search for "anima regional" from ComfyUI Manager.
+<img width="1033" height="250" alt="1782109442-qZH5iIbnRBG4mx23WP7yMvTz" src="https://github.com/user-attachments/assets/64d29b98-74a1-4c47-90fe-010ed2f4ad29" />
+
+
 Clone this repository into ComfyUI's `custom_nodes` folder:
 
 ```powershell
