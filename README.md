@@ -28,7 +28,7 @@ Restart ComfyUI after installation.
 This node does not include the Anima-LLLite node or the regional ControlNet model. Install them separately:
 
 - [kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite)
-- Recommended base model: [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima)
+- Anima base model: [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) Other Anima fork models
 - [anima-lllite-regional-exp-v3.safetensors](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet/resolve/main/anima-lllite-regional-exp-v3.safetensors)
 
 Example workflows are included in `workflows/`:
