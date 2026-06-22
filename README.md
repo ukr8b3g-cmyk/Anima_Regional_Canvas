@@ -257,7 +257,7 @@ green grass field
 
 - [kohya-ss/ComfyUI-Anima-LLLite](https://github.com/kohya-ss/ComfyUI-Anima-LLLite) for the Anima-LLLite ComfyUI node.
 - [Sen-sou/Anima-LLLite-Regional-Controlnet](https://huggingface.co/Sen-sou/Anima-LLLite-Regional-Controlnet) for the regional ControlNet model.
-- This project was inspired by Sen-sou's Anima-LLLite-Regional-Controlnet, but the code used here is original and was independently developed, not copied or plagiarized.
+- This project was inspired by Sen-sou's Anima-LLLite-Regional-Controlnet, but the code in this repository is original, independently developed, and not copied or plagiarized.
 - ComfyUI and its community.
 
 ## License
