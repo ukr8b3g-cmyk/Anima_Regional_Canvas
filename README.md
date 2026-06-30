@@ -1,6 +1,10 @@
 # Anima Regional Canvas
 <img width="1712" height="745" alt="Clip_7" src="https://github.com/user-attachments/assets/73c40c9b-d6b1-4eab-a3e7-0baf36a4f8af" />
 
+## Update
+
+Fixed a canvas persistence bug where painted regions could disappear after switching ComfyUI tabs or when the canvas was rebuilt. The canvas now preserves and restores painted mask data more safely.
+
 
 
 An ANIMA-focused custom node for Anima-LLLite Regional ControlNet workflows.
