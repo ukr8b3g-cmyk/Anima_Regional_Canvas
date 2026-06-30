@@ -11,6 +11,7 @@ const COLORS = [
 const HISTORY_LIMIT = 8;
 const MAX_STROKE_POINTS = 96;
 const STANDARD_NODE_SIZE = [1430, 1270];
+const ARC_BACKUP_PREFIX = "anima_regional_canvas:";
 
 function findWidget(node, name) {
   return node.widgets?.find((w) => w.name === name);
@@ -21,6 +22,24 @@ function hideWidget(widget) {
   widget.hidden = true;
   widget.computeSize = () => [0, -4];
   widget.serialize = true;
+}
+
+function canvasBackupKey(node) {
+  return `${ARC_BACKUP_PREFIX}${node.type}:${node.id}`;
+}
+
+function readCanvasBackup(node) {
+  try {
+    return localStorage.getItem(canvasBackupKey(node)) || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function writeCanvasBackup(node, payload) {
+  try {
+    localStorage.setItem(canvasBackupKey(node), payload || "");
+  } catch (_) {}
 }
 
 function stop(ev) {
@@ -327,6 +346,25 @@ app.registerExtension({
       loadCanvasInput.style.display = "none";
       loadCanvasInput.addEventListener("pointerdown", stop);
       loadCanvasInput.addEventListener("mousedown", stop);
+      const resizeCanvasButton = makeButton("Resize Canvas", "Resize the mask canvas inside ComfyUI without loading an external image");
+      const canvasWNum = document.createElement("input");
+      canvasWNum.type = "number";
+      canvasWNum.min = "16";
+      canvasWNum.step = "8";
+      canvasWNum.value = widthW?.value ?? 1024;
+      canvasWNum.className = "arc-num";
+      canvasWNum.title = "Canvas width";
+      const canvasHNum = document.createElement("input");
+      canvasHNum.type = "number";
+      canvasHNum.min = "16";
+      canvasHNum.step = "8";
+      canvasHNum.value = heightW?.value ?? 1024;
+      canvasHNum.className = "arc-num";
+      canvasHNum.title = "Canvas height";
+      canvasWNum.addEventListener("pointerdown", stop);
+      canvasWNum.addEventListener("mousedown", stop);
+      canvasHNum.addEventListener("pointerdown", stop);
+      canvasHNum.addEventListener("mousedown", stop);
       resetBrush.addEventListener("click", () => {
         brush.value = "92";
         syncBrush();
@@ -338,6 +376,9 @@ app.registerExtension({
       toolbar.appendChild(resetBrush);
       toolbar.appendChild(saveCanvasButton);
       toolbar.appendChild(loadCanvasButton);
+      toolbar.appendChild(canvasWNum);
+      toolbar.appendChild(canvasHNum);
+      toolbar.appendChild(resizeCanvasButton);
       toolbar.appendChild(loadCanvasInput);
       wrap.appendChild(toolbar);
 
@@ -432,6 +473,12 @@ app.registerExtension({
       loadCanvasButton.addEventListener("click", () => loadCanvasInput.click());
       loadCanvasInput.addEventListener("change", () => loadCanvasFile(loadCanvasInput.files?.[0]));
       saveCanvasButton.addEventListener("click", downloadMaskCanvas);
+      resizeCanvasButton.addEventListener("click", () => {
+        const w = safeDimension(canvasWNum.value, canvas.width || lastWidth || 1024);
+        const h = safeDimension(canvasHNum.value, canvas.height || lastHeight || 1024);
+        pushHistory();
+        resizeCanvasPreserve(w, h, true);
+      });
 
       const prompts = document.createElement("div");
       prompts.className = "arc-prompts";
@@ -483,40 +530,73 @@ app.registerExtension({
 
       const history = [];
       let saveTimer = null;
+      let resizeTimer = null;
       let lastWidth = null;
       let lastHeight = null;
       let lastInputImageKey = "";
       let canvasEdited = false;
+      let hasCanvasContent = false;
+      let isRestoringCanvas = false;
+      let lastDisplayStyle = { width: "", height: "" };
+      let canvasResizeObserver = null;
+      function visibleCanvasBox() {
+        return canvasBox.isConnected && canvasBox.clientWidth > 16 && canvasBox.clientHeight > 16;
+      }
+      function safeDimension(value, fallback) {
+        const n = Math.round(Number(value));
+        if (!Number.isFinite(n) || n < 16) return Math.max(16, Math.round(Number(fallback) || 1024));
+        return Math.min(16384, n);
+      }
       function dims() {
         return {
-          w: Math.max(16, Number(widthW?.value || 1024)),
-          h: Math.max(16, Number(heightW?.value || 1024)),
+          w: safeDimension(widthW?.value, canvas.width || lastWidth || canvasWNum?.value || 1024),
+          h: safeDimension(heightW?.value, canvas.height || lastHeight || canvasHNum?.value || 1024),
         };
       }
       function syncSizeWidgetsToCanvas() {
         if (widthW && canvas.width) widthW.value = canvas.width;
         if (heightW && canvas.height) heightW.value = canvas.height;
+        if (canvasWNum && canvas.width) canvasWNum.value = canvas.width;
+        if (canvasHNum && canvas.height) canvasHNum.value = canvas.height;
         if (sizeLabel && canvas.width && canvas.height) sizeLabel.textContent = `Canvas ${canvas.width} x ${canvas.height}`;
       }
       function syncCanvasSize(keep = false, force = false) {
         const { w, h } = dims();
         if (!force && w === lastWidth && h === lastHeight && canvas.width === w && canvas.height === h) return;
-        lastWidth = w;
-        lastHeight = h;
-        resetCanvas(keep);
+        resizeCanvasPreserve(w, h, keep);
       }
-      function saveData() {
-        if (!canvasData) return;
+      function scheduleResizePreserve(force = false) {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          resizeTimer = null;
+          syncCanvasSize(true, force);
+        }, 120);
+      }
+      function saveData(options = {}) {
         if (saveTimer) {
           clearTimeout(saveTimer);
           saveTimer = null;
         }
-        canvasData.value = JSON.stringify({ data_url: maskCanvas.toDataURL("image/png") });
+        const painted = maskHasPaint();
+        const payload = JSON.stringify({
+          version: 2,
+          width: maskCanvas.width,
+          height: maskCanvas.height,
+          data_url: maskCanvas.toDataURL("image/png"),
+        });
+        if (canvasData) canvasData.value = payload;
+        node.properties.arcCanvasData = payload;
+        if (options.clearBackup) {
+          writeCanvasBackup(node, "");
+        } else if (painted || canvasEdited || hasCanvasContent || options.forceBackup) {
+          writeCanvasBackup(node, payload);
+        }
+        hasCanvasContent = painted || canvasEdited || hasCanvasContent;
         markDirty();
       }
       function scheduleSaveData() {
-        if (!canvasData || saveTimer) return;
-        saveTimer = setTimeout(saveData, 500);
+        if (saveTimer) return;
+        saveTimer = setTimeout(saveData, 250);
       }
       function pushHistory() {
         try {
@@ -527,38 +607,52 @@ app.registerExtension({
         } catch (_) {}
         if (history.length > HISTORY_LIMIT) history.shift();
       }
-      function resetCanvas(keep = false) {
-        const old = keep && canvas.width && canvas.height
-          ? {
-              display: ctx.getImageData(0, 0, canvas.width, canvas.height),
-              mask: maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height),
-            }
-          : null;
-        const { w, h } = dims();
+      function cloneCanvas(src) {
+        if (!src?.width || !src?.height) return null;
+        const clone = document.createElement("canvas");
+        clone.width = src.width;
+        clone.height = src.height;
+        clone.getContext("2d").drawImage(src, 0, 0);
+        return clone;
+      }
+      function resizeCanvasPreserve(w, h, keep = true) {
+        w = safeDimension(w, canvas.width || lastWidth || 1024);
+        h = safeDimension(h, canvas.height || lastHeight || 1024);
+        const oldDisplay = keep ? cloneCanvas(canvas) : null;
+        const oldMask = keep ? cloneCanvas(maskCanvas) : null;
         lastWidth = w;
         lastHeight = h;
+        if (widthW) widthW.value = w;
+        if (heightW) heightW.value = h;
         canvas.width = w;
         canvas.height = h;
         maskCanvas.width = w;
         maskCanvas.height = h;
+        ctx.imageSmoothingEnabled = false;
+        maskCtx.imageSmoothingEnabled = false;
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, w, h);
         maskCtx.fillStyle = "#ffffff";
         maskCtx.fillRect(0, 0, w, h);
-        if (old) {
-          ctx.putImageData(old.display, 0, 0);
-          maskCtx.putImageData(old.mask, 0, 0);
-        }
-        if (!keep) canvasEdited = false;
+        if (oldDisplay && oldDisplay.width && oldDisplay.height) ctx.drawImage(oldDisplay, 0, 0, w, h);
+        if (oldMask && oldMask.width && oldMask.height) maskCtx.drawImage(oldMask, 0, 0, w, h);
+        canvasEdited = keep ? maskHasPaint() : false;
+        hasCanvasContent = hasCanvasContent || canvasEdited;
         fitCanvas();
         saveData();
       }
+      function resetCanvas(keep = false) {
+        const { w, h } = dims();
+        resizeCanvasPreserve(w, h, keep);
+      }
       function fitCanvas() {
+        if (!visibleCanvasBox()) return;
         const maxW = Math.max(1, canvasBox.clientWidth - 8);
         const maxH = Math.max(1, canvasBox.clientHeight - 8);
         const scale = Math.min(maxW / canvas.width, maxH / canvas.height);
         const displayW = Math.max(1, Math.floor(canvas.width * scale));
         const displayH = Math.max(1, Math.floor(canvas.height * scale));
+        lastDisplayStyle = { width: `${displayW}px`, height: `${displayH}px` };
         canvas.style.width = `${displayW}px`;
         canvas.style.height = `${displayH}px`;
         canvasLayer.style.width = `${displayW}px`;
@@ -595,10 +689,13 @@ app.registerExtension({
         if (!source) return;
         if (!force && source.key === lastInputImageKey) return;
         if (canvasEdited && !force) return;
+        if (isRestoringCanvas || !visibleCanvasBox()) return;
 
         const img = new Image();
         img.onload = () => {
           if (canvasEdited && !force) return;
+          const oldMask = !force ? cloneCanvas(maskCanvas) : null;
+          const hadPaint = !force && maskHasPaint();
           const w = Math.max(16, img.naturalWidth || img.width || 1024);
           const h = Math.max(16, img.naturalHeight || img.height || 1024);
           if (widthW) widthW.value = w;
@@ -609,12 +706,16 @@ app.registerExtension({
           canvas.height = h;
           maskCanvas.width = w;
           maskCanvas.height = h;
+          ctx.imageSmoothingEnabled = false;
+          maskCtx.imageSmoothingEnabled = false;
           ctx.clearRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
           maskCtx.fillStyle = "#ffffff";
           maskCtx.fillRect(0, 0, w, h);
+          if (oldMask && hadPaint) maskCtx.drawImage(oldMask, 0, 0, w, h);
           lastInputImageKey = source.key;
-          canvasEdited = false;
+          canvasEdited = maskHasPaint();
+          hasCanvasContent = hasCanvasContent || canvasEdited;
           fitCanvas();
           saveData();
         };
@@ -754,46 +855,68 @@ app.registerExtension({
       clear.addEventListener("click", () => {
         pushHistory();
         canvasEdited = false;
+        hasCanvasContent = false;
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         maskCtx.fillStyle = "#ffffff";
         maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-        saveData();
+        saveData({ clearBackup: true });
         loadConnectedImage(true);
       });
 
-      const existing = canvasData?.value;
-      if (existing) {
+      function restoreCanvasFromText(payloadText) {
+        if (!payloadText) return false;
         try {
-          const payload = JSON.parse(existing);
+          const payload = JSON.parse(payloadText);
+          if (!payload?.data_url) return false;
           const img = new Image();
           img.onload = () => {
-            const { w, h } = dims();
-            lastWidth = w;
-            lastHeight = h;
-            canvas.width = w; canvas.height = h;
-            maskCanvas.width = w; maskCanvas.height = h;
-            ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
-            maskCtx.fillStyle = "#ffffff"; maskCtx.fillRect(0, 0, w, h);
-            ctx.drawImage(img, 0, 0, w, h);
-            maskCtx.drawImage(img, 0, 0, w, h);
-            canvasEdited = maskHasPaint();
-            fitCanvas();
-            saveData();
+            isRestoringCanvas = true;
+            try {
+              const fallback = dims();
+              const w = Math.max(16, Number(payload.width || img.naturalWidth || img.width || fallback.w));
+              const h = Math.max(16, Number(payload.height || img.naturalHeight || img.height || fallback.h));
+              if (widthW) widthW.value = w;
+              if (heightW) heightW.value = h;
+              lastWidth = w;
+              lastHeight = h;
+              canvas.width = w; canvas.height = h;
+              maskCanvas.width = w; maskCanvas.height = h;
+              ctx.imageSmoothingEnabled = false;
+              maskCtx.imageSmoothingEnabled = false;
+              ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
+              maskCtx.fillStyle = "#ffffff"; maskCtx.fillRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+              maskCtx.drawImage(img, 0, 0, w, h);
+              canvasEdited = maskHasPaint();
+              hasCanvasContent = canvasEdited;
+              fitCanvas();
+              saveData({ forceBackup: canvasEdited });
+            } finally {
+              isRestoringCanvas = false;
+            }
           };
           img.src = payload.data_url;
+          return true;
         } catch (_) {
-          resetCanvas(false);
+          return false;
         }
+      }
+
+      const existing = canvasData?.value || node.properties.arcCanvasData || readCanvasBackup(node);
+      if (existing) {
+        if (!restoreCanvasFromText(existing)) resetCanvas(false);
       } else {
         resetCanvas(false);
       }
 
       const oldWidth = widthW?.callback;
       const oldHeight = heightW?.callback;
-      if (widthW) widthW.callback = function () { oldWidth?.apply(this, arguments); syncSizeWidgetsToCanvas(); };
-      if (heightW) heightW.callback = function () { oldHeight?.apply(this, arguments); syncSizeWidgetsToCanvas(); };
-      const sizePoll = setInterval(() => syncCanvasSize(false), 250);
+      if (widthW) widthW.callback = function () { oldWidth?.apply(this, arguments); scheduleResizePreserve(true); };
+      if (heightW) heightW.callback = function () { oldHeight?.apply(this, arguments); scheduleResizePreserve(true); };
+      const sizePoll = setInterval(() => {
+        if (visibleCanvasBox()) syncCanvasSize(true);
+      }, 250);
       const sourcePoll = setInterval(() => loadConnectedImage(false), 1000);
       setTimeout(() => loadConnectedImage(false), 100);
 
@@ -805,6 +928,7 @@ app.registerExtension({
         if (workflowNode) {
           workflowNode.properties = workflowNode.properties || {};
           workflowNode.properties.animaPrompts = { ...node.properties.animaPrompts };
+          workflowNode.properties.arcCanvasData = node.properties.arcCanvasData || canvasData?.value || "";
           writeSerializedValues(workflowNode);
         }
       };
@@ -816,7 +940,20 @@ app.registerExtension({
         node.properties.animaPrompts = node.properties.animaPrompts || {};
         removeLegacyInputs();
         syncPromptTextareas();
+        restoreCanvasFromText(canvasData?.value || node.properties.arcCanvasData || readCanvasBackup(node));
+        requestAnimationFrame(fitCanvas);
       };
+      const flushOnVisibilityChange = () => {
+        if (document.visibilityState === "hidden") saveData();
+        if (document.visibilityState === "visible") requestAnimationFrame(fitCanvas);
+      };
+      const onResizeVisible = () => {
+        if (visibleCanvasBox()) requestAnimationFrame(fitCanvas);
+      };
+      window.addEventListener("blur", saveData);
+      document.addEventListener("visibilitychange", flushOnVisibilityChange);
+      canvasResizeObserver = new ResizeObserver(onResizeVisible);
+      canvasResizeObserver.observe(canvasBox);
       syncPromptTextareas();
 
       node.addDOMWidget("anima_canvas_editor", "AnimaRegionalCanvasEditor", wrap, {
@@ -836,8 +973,12 @@ app.registerExtension({
       };
       const originalRemoved = node.onRemoved;
       node.onRemoved = function () {
+        saveData();
         clearInterval(sizePoll);
         clearInterval(sourcePoll);
+        window.removeEventListener("blur", saveData);
+        document.removeEventListener("visibilitychange", flushOnVisibilityChange);
+        canvasResizeObserver?.disconnect?.();
         originalRemoved?.apply(this, arguments);
       };
       requestAnimationFrame(fitCanvas);
