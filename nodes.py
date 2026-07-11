@@ -1,7 +1,6 @@
 import base64
 import io
 import json
-import math
 import numpy as np
 import torch
 from PIL import Image
@@ -107,6 +106,7 @@ def _set_default(conditioning):
 
 
 def _latent(width, height, batch_size):
+    width, height = _latent_size(width, height)
     samples = torch.zeros(
         [batch_size, 4, height // 8, width // 8],
         device=_intermediate_device(),
@@ -115,7 +115,14 @@ def _latent(width, height, batch_size):
     return {"samples": samples, "downscale_ratio_spacial": 8}
 
 
+def _latent_size(width, height):
+    width = max(16, int(width)) // 8 * 8
+    height = max(16, int(height)) // 8 * 8
+    return width, height
+
+
 def _resize_image_tensor(image, width, height):
+    width, height = _latent_size(width, height)
     src = image[:, :, :, :3].float()
     if src.shape[1:3] == (height, width):
         return src
@@ -129,11 +136,12 @@ def _resize_image_tensor(image, width, height):
 
 def _grow_mask(mask, amount):
     mask = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
+    amount = max(0, int(amount))
     if amount <= 0:
         return mask.round()
-    kernel = torch.ones((1, 1, amount, amount), device=mask.device, dtype=mask.dtype)
-    padding = math.ceil((amount - 1) / 2)
-    return torch.clamp(torch.nn.functional.conv2d(mask.round(), kernel, padding=padding), 0, 1)
+    mask = mask.round()
+    kernel_size = amount * 2 + 1
+    return torch.nn.functional.max_pool2d(mask, kernel_size, stride=1, padding=amount)
 
 
 def _inpaint_latent(vae, pixels, mask, grow_mask_by):
@@ -163,6 +171,7 @@ def _inpaint_latent(vae, pixels, mask, grow_mask_by):
 
 
 def _image_from_canvas(canvas_data, width, height, batch_size):
+    width, height = _latent_size(width, height)
     image = None
     if canvas_data:
         try:
@@ -350,6 +359,7 @@ class AnimaRegionalCanvas:
     CATEGORY = "Anima/Regional"
 
     def execute(self, model, clip, width, height, batch_size, brush_size, region_strength, canvas_data="", **kwargs):
+        width, height = _latent_size(width, height)
         image = _image_from_canvas(canvas_data, width, height, batch_size)
         masks = _extract_masks(image)
         prompts = _prompts(kwargs)
@@ -403,6 +413,7 @@ class AnimaRegionalInpaintCanvas:
     CATEGORY = "Anima/Regional"
 
     def execute(self, model, clip, width, height, batch_size, brush_size, region_strength, grow_mask_by, canvas_data="", **kwargs):
+        width, height = _latent_size(width, height)
         mask_image = _image_from_canvas(canvas_data, width, height, batch_size)
         masks = _extract_masks(mask_image)
         prompts = _prompts(kwargs)
