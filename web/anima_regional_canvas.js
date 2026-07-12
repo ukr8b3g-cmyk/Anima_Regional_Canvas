@@ -12,6 +12,7 @@ const HISTORY_LIMIT = 8;
 const MAX_STROKE_POINTS = 96;
 const STANDARD_NODE_SIZE = [1430, 1270];
 const ARC_BACKUP_PREFIX = "anima_regional_canvas:";
+const CANVAS_SIZE_VERSION = 1;
 
 function findWidget(node, name) {
   return node.widgets?.find((w) => w.name === name);
@@ -163,6 +164,8 @@ app.registerExtension({
       }
       function writeSerializedValues(workflowNode) {
         savePrompts();
+        setSerializedWidgetValue(workflowNode, "width", Number(widthW?.value ?? 1024));
+        setSerializedWidgetValue(workflowNode, "height", Number(heightW?.value ?? 1024));
         for (const name of promptNames) {
           setSerializedWidgetValue(workflowNode, name, promptValue(name));
         }
@@ -350,17 +353,19 @@ app.registerExtension({
       const canvasWNum = document.createElement("input");
       canvasWNum.type = "number";
       canvasWNum.min = "16";
+      canvasWNum.max = "16384";
       canvasWNum.step = "8";
       canvasWNum.value = widthW?.value ?? 1024;
       canvasWNum.className = "arc-num";
-      canvasWNum.title = "Canvas width";
+      canvasWNum.title = "Canvas width. Apply on change or Enter.";
       const canvasHNum = document.createElement("input");
       canvasHNum.type = "number";
       canvasHNum.min = "16";
+      canvasHNum.max = "16384";
       canvasHNum.step = "8";
       canvasHNum.value = heightW?.value ?? 1024;
       canvasHNum.className = "arc-num";
-      canvasHNum.title = "Canvas height";
+      canvasHNum.title = "Canvas height. Apply on change or Enter.";
       canvasWNum.addEventListener("pointerdown", stop);
       canvasWNum.addEventListener("mousedown", stop);
       canvasHNum.addEventListener("pointerdown", stop);
@@ -439,8 +444,8 @@ app.registerExtension({
         img.onload = () => {
           try {
             pushHistory();
-            const w = Math.max(16, Number(img.naturalWidth || img.width || 1024));
-            const h = Math.max(16, Number(img.naturalHeight || img.height || 1024));
+            const w = safeDimension(img.naturalWidth || img.width, 1024);
+            const h = safeDimension(img.naturalHeight || img.height, 1024);
             if (widthW) widthW.value = w;
             if (heightW) heightW.value = h;
             lastWidth = w;
@@ -473,12 +478,16 @@ app.registerExtension({
       loadCanvasButton.addEventListener("click", () => loadCanvasInput.click());
       loadCanvasInput.addEventListener("change", () => loadCanvasFile(loadCanvasInput.files?.[0]));
       saveCanvasButton.addEventListener("click", downloadMaskCanvas);
-      resizeCanvasButton.addEventListener("click", () => {
-        const w = safeDimension(canvasWNum.value, canvas.width || lastWidth || 1024);
-        const h = safeDimension(canvasHNum.value, canvas.height || lastHeight || 1024);
-        pushHistory();
-        resizeCanvasPreserve(w, h, true);
-      });
+      resizeCanvasButton.addEventListener("click", resizeFromToolbar);
+      canvasWNum.addEventListener("change", resizeFromToolbar);
+      canvasHNum.addEventListener("change", resizeFromToolbar);
+      const commitSizeOnEnter = (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        resizeFromToolbar();
+      };
+      canvasWNum.addEventListener("keydown", commitSizeOnEnter);
+      canvasHNum.addEventListener("keydown", commitSizeOnEnter);
 
       const prompts = document.createElement("div");
       prompts.className = "arc-prompts";
@@ -544,8 +553,21 @@ app.registerExtension({
       }
       function safeDimension(value, fallback) {
         const n = Math.round(Number(value));
-        if (!Number.isFinite(n) || n < 16) return Math.max(16, Math.round(Number(fallback) || 1024));
-        return Math.min(16384, n);
+        const base = Number.isFinite(n) && n >= 16 ? n : Math.round(Number(fallback) || 1024);
+        return Math.min(16384, Math.max(16, Math.floor(base / 8) * 8));
+      }
+      function markCanvasSizeInitialized() {
+        node.properties.arcCanvasSizeVersion = CANVAS_SIZE_VERSION;
+      }
+      function canvasPayloadDimensions(payloadText) {
+        if (!payloadText) return null;
+        try {
+          const payload = JSON.parse(payloadText);
+          const width = Math.round(Number(payload.width));
+          const height = Math.round(Number(payload.height));
+          if (Number.isFinite(width) && Number.isFinite(height)) return { width, height };
+        } catch (_) {}
+        return null;
       }
       function dims() {
         return {
@@ -556,8 +578,8 @@ app.registerExtension({
       function syncSizeWidgetsToCanvas() {
         if (widthW && canvas.width) widthW.value = canvas.width;
         if (heightW && canvas.height) heightW.value = canvas.height;
-        if (canvasWNum && canvas.width) canvasWNum.value = canvas.width;
-        if (canvasHNum && canvas.height) canvasHNum.value = canvas.height;
+        if (canvasWNum && canvas.width && document.activeElement !== canvasWNum) canvasWNum.value = canvas.width;
+        if (canvasHNum && canvas.height && document.activeElement !== canvasHNum) canvasHNum.value = canvas.height;
         if (sizeLabel && canvas.width && canvas.height) sizeLabel.textContent = `Canvas ${canvas.width} x ${canvas.height}`;
       }
       function syncCanvasSize(keep = false, force = false) {
@@ -578,6 +600,7 @@ app.registerExtension({
           saveTimer = null;
         }
         const painted = maskHasPaint();
+        markCanvasSizeInitialized();
         const payload = JSON.stringify({
           version: 2,
           width: maskCanvas.width,
@@ -641,6 +664,14 @@ app.registerExtension({
         fitCanvas();
         saveData();
       }
+      function resizeFromToolbar() {
+        const w = safeDimension(canvasWNum.value, canvas.width || lastWidth || 1024);
+        const h = safeDimension(canvasHNum.value, canvas.height || lastHeight || 1024);
+        canvasWNum.value = String(w);
+        canvasHNum.value = String(h);
+        pushHistory();
+        resizeCanvasPreserve(w, h, true);
+      }
       function resetCanvas(keep = false) {
         const { w, h } = dims();
         resizeCanvasPreserve(w, h, keep);
@@ -696,8 +727,8 @@ app.registerExtension({
           if (canvasEdited && !force) return;
           const oldMask = !force ? cloneCanvas(maskCanvas) : null;
           const hadPaint = !force && maskHasPaint();
-          const w = Math.max(16, img.naturalWidth || img.width || 1024);
-          const h = Math.max(16, img.naturalHeight || img.height || 1024);
+          const w = safeDimension(img.naturalWidth || img.width, 1024);
+          const h = safeDimension(img.naturalHeight || img.height, 1024);
           if (widthW) widthW.value = w;
           if (heightW) heightW.value = h;
           lastWidth = w;
@@ -874,8 +905,8 @@ app.registerExtension({
             isRestoringCanvas = true;
             try {
               const fallback = dims();
-              const w = Math.max(16, Number(payload.width || img.naturalWidth || img.width || fallback.w));
-              const h = Math.max(16, Number(payload.height || img.naturalHeight || img.height || fallback.h));
+              const w = safeDimension(payload.width || img.naturalWidth || img.width, fallback.w);
+              const h = safeDimension(payload.height || img.naturalHeight || img.height, fallback.h);
               if (widthW) widthW.value = w;
               if (heightW) heightW.value = h;
               lastWidth = w;
@@ -929,18 +960,47 @@ app.registerExtension({
           workflowNode.properties = workflowNode.properties || {};
           workflowNode.properties.animaPrompts = { ...node.properties.animaPrompts };
           workflowNode.properties.arcCanvasData = node.properties.arcCanvasData || canvasData?.value || "";
+          workflowNode.properties.arcCanvasSizeVersion = CANVAS_SIZE_VERSION;
           writeSerializedValues(workflowNode);
         }
       };
 
       const oldConfigure = node.onConfigure;
       node.onConfigure = function () {
+        const workflowInfo = arguments[0] || {};
+        const workflowProperties = workflowInfo.properties || {};
+        const hasWorkflowCanvasData = Object.prototype.hasOwnProperty.call(workflowProperties, "arcCanvasData");
+        const workflowWidgetValues = Array.isArray(workflowInfo.widgets_values)
+          ? workflowInfo.widgets_values
+          : [];
         oldConfigure?.apply(this, arguments);
         node.properties = node.properties || {};
         node.properties.animaPrompts = node.properties.animaPrompts || {};
         removeLegacyInputs();
         syncPromptTextareas();
-        restoreCanvasFromText(canvasData?.value || node.properties.arcCanvasData || readCanvasBackup(node));
+        const serializedCanvas = hasWorkflowCanvasData
+          ? String(workflowProperties.arcCanvasData || "")
+          : String(canvasData?.value || "");
+        if (hasWorkflowCanvasData || !serializedCanvas) node.properties.arcCanvasData = serializedCanvas;
+        const existingCanvas = serializedCanvas || readCanvasBackup(node);
+        const payloadSize = canvasPayloadDimensions(existingCanvas);
+        const workflowSizeVersion = Number(workflowProperties.arcCanvasSizeVersion || 0);
+        const legacyWidgetSize = Number(workflowWidgetValues[0]) === 300
+          && Number(workflowWidgetValues[1]) === 150;
+        const legacyDefaultSize = workflowSizeVersion < CANVAS_SIZE_VERSION && (
+          legacyWidgetSize
+          || (Number(widthW?.value) === 300 && Number(heightW?.value) === 150)
+          || (payloadSize?.width === 300 && payloadSize?.height === 150)
+        );
+        if (legacyDefaultSize) {
+          if (widthW) widthW.value = 1024;
+          if (heightW) heightW.value = 1024;
+          canvasWNum.value = "1024";
+          canvasHNum.value = "1024";
+          resetCanvas(false);
+        } else if (!restoreCanvasFromText(existingCanvas)) {
+          resetCanvas(false);
+        }
         requestAnimationFrame(fitCanvas);
       };
       const flushOnVisibilityChange = () => {

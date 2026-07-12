@@ -116,8 +116,8 @@ def _latent(width, height, batch_size):
 
 
 def _latent_size(width, height):
-    width = max(16, int(width)) // 8 * 8
-    height = max(16, int(height)) // 8 * 8
+    width = min(MAX_RESOLUTION, max(16, int(width))) // 8 * 8
+    height = min(MAX_RESOLUTION, max(16, int(height))) // 8 * 8
     return width, height
 
 
@@ -360,6 +360,7 @@ class AnimaRegionalCanvas:
 
     def execute(self, model, clip, width, height, batch_size, brush_size, region_strength, canvas_data="", **kwargs):
         width, height = _latent_size(width, height)
+        batch_size = max(1, int(batch_size))
         image = _image_from_canvas(canvas_data, width, height, batch_size)
         masks = _extract_masks(image)
         prompts = _prompts(kwargs)
@@ -414,12 +415,14 @@ class AnimaRegionalInpaintCanvas:
 
     def execute(self, model, clip, width, height, batch_size, brush_size, region_strength, grow_mask_by, canvas_data="", **kwargs):
         width, height = _latent_size(width, height)
+        batch_size = max(1, int(batch_size))
         mask_image = _image_from_canvas(canvas_data, width, height, batch_size)
         masks = _extract_masks(mask_image)
         prompts = _prompts(kwargs)
         regional_enabled = kwargs.get("regional_enabled", True)
         positive, negative = _conditioning(clip, prompts, masks, region_strength, regional_enabled)
         inpaint_mask = torch.clamp(1.0 - masks["base"], 0.0, 1.0)
+        inpaint_mask = inpaint_mask.unsqueeze(0).repeat(batch_size, 1, 1)
         source_image = kwargs.get("image")
         vae = kwargs.get("vae")
         if source_image is not None and vae is not None:
