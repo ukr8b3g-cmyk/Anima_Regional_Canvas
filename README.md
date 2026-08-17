@@ -44,8 +44,8 @@ Restart ComfyUI after installation.
 
 Example workflows are included in `workflows/`:
 
-- `Anima_Regional_Canvas_Test.json`
-- `Anima_Regional_Inpaint_Canvas_Test.json`
+- [Anima_Regional_Canvas_Test.json](workflows/Anima_Regional_Canvas_Test.json)
+- [Anima_Regional_Inpaint_Canvas_Test.json](workflows/Anima_Regional_Inpaint_Canvas_Test.json)
 
 ## Usage
 
@@ -331,8 +331,8 @@ git clone https://github.com/ukr8b3g-cmyk/Anima_Regional_Canvas.git
 
 インストール後はComfyUIを再起動します。サンプルは`workflows/`にあります。
 
-- `Anima_Regional_Canvas_Test.json`：通常生成
-- `Anima_Regional_Inpaint_Canvas_Test.json`：Inpaint
+- [Anima_Regional_Canvas_Test.json](workflows/Anima_Regional_Canvas_Test.json)：通常生成
+- [Anima_Regional_Inpaint_Canvas_Test.json](workflows/Anima_Regional_Inpaint_Canvas_Test.json)：Inpaint
 
 ## 基本的な使い方
 
