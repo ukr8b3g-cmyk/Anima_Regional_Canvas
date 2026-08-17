@@ -1,9 +1,11 @@
 # Anima Regional Canvas
 [日本語はこちら](#日本語)
 
+**Current version: 2.0**
+
 <img width="1712" height="745" alt="Clip_7" src="https://github.com/user-attachments/assets/73c40c9b-d6b1-4eab-a3e7-0baf36a4f8af" />
 
-## Update
+## Version 2.0 Update
 
 - Updated both bundled workflows for ComfyUI core `Load Model Patch` and `Apply Anima LLLite`.
 - Reorganized the canvas toolbar, enlarged the canvas-size controls, and added a draggable canvas/prompt divider.
@@ -303,9 +305,11 @@ MIT License. See [LICENSE](LICENSE).
 
 [English](#anima-regional-canvas)
 
+**現在のバージョン：2.0**
+
 ANIMA向けの色分けリージョナルキャンバスノードです。ComfyUI上で領域を色分けして描画し、各色に対応するプロンプトのマスク付きConditioningと、`Apply Anima LLLite`用のカラー画像を出力します。
 
-## 更新内容
+## バージョン2.0 更新内容
 
 - 同梱の通常生成・Inpaintワークフローを、ComfyUIコアの`Load Model Patch`と`Apply Anima LLLite`へ更新しました。
 - ツールバーを3段に整理し、キャンバスサイズ入力を拡大しました。
