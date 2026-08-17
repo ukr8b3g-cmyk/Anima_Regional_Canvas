@@ -883,6 +883,24 @@ app.registerExtension({
         } catch (_) {}
         return false;
       }
+      function drawMaskOverlay(targetCtx, sourceMask, width, height) {
+        const overlay = document.createElement("canvas");
+        overlay.width = width;
+        overlay.height = height;
+        const overlayCtx = overlay.getContext("2d", { willReadFrequently: true });
+        overlayCtx.imageSmoothingEnabled = false;
+        overlayCtx.drawImage(sourceMask, 0, 0, width, height);
+        const imageData = overlayCtx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        const opacityValue = Number(opacity.value);
+        const overlayAlpha = Math.round(255 * Math.max(0, Math.min(1, Number.isFinite(opacityValue) ? opacityValue : 1)));
+        for (let index = 0; index < data.length; index += 4) {
+          const white = data[index] >= 250 && data[index + 1] >= 250 && data[index + 2] >= 250;
+          data[index + 3] = white ? 0 : overlayAlpha;
+        }
+        overlayCtx.putImageData(imageData, 0, 0);
+        targetCtx.drawImage(overlay, 0, 0);
+      }
       function connectedImageSource() {
         const input = node.inputs?.find((slot) => slot.name === "image");
         if (!input?.link || !node.graph?.links) return null;
@@ -903,12 +921,10 @@ app.registerExtension({
         const source = connectedImageSource();
         if (!source) return;
         if (!force && source.key === lastInputImageKey) return;
-        if (canvasEdited && !force) return;
         if (isRestoringCanvas || !visibleCanvasBox()) return;
 
         const img = new Image();
         img.onload = () => {
-          if (canvasEdited && !force) return;
           const oldMask = !force ? cloneCanvas(maskCanvas) : null;
           const hadPaint = !force && maskHasPaint();
           const w = safeDimension(img.naturalWidth || img.width, 1024);
@@ -927,7 +943,10 @@ app.registerExtension({
           ctx.drawImage(img, 0, 0, w, h);
           maskCtx.fillStyle = "#ffffff";
           maskCtx.fillRect(0, 0, w, h);
-          if (oldMask && hadPaint) maskCtx.drawImage(oldMask, 0, 0, w, h);
+          if (oldMask && hadPaint) {
+            maskCtx.drawImage(oldMask, 0, 0, w, h);
+            drawMaskOverlay(ctx, maskCanvas, w, h);
+          }
           lastInputImageKey = source.key;
           canvasEdited = maskHasPaint();
           hasCanvasContent = hasCanvasContent || canvasEdited;
@@ -1153,7 +1172,10 @@ app.registerExtension({
       const oldConnectionsChange = node.onConnectionsChange;
       node.onConnectionsChange = function () {
         oldConnectionsChange?.apply(this, arguments);
-        requestAnimationFrame(syncPromptInputModes);
+        requestAnimationFrame(() => {
+          syncPromptInputModes();
+          loadConnectedImage(false);
+        });
       };
 
       const oldConfigure = node.onConfigure;
