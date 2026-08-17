@@ -13,6 +13,10 @@ const MAX_STROKE_POINTS = 96;
 const STANDARD_NODE_SIZE = [1430, 1270];
 const ARC_BACKUP_PREFIX = "anima_regional_canvas:";
 const CANVAS_SIZE_VERSION = 1;
+const DEFAULT_SPLIT_RATIO = 0.68;
+const MIN_CANVAS_WIDTH = 520;
+const MIN_PROMPTS_WIDTH = 380;
+const SPLITTER_WIDTH = 8;
 
 function findWidget(node, name) {
   return node.widgets?.find((w) => w.name === name);
@@ -51,6 +55,7 @@ function makeButton(text, title) {
   const b = document.createElement("button");
   b.textContent = text;
   b.title = title || "";
+  if (b.title) b.setAttribute("aria-label", b.title);
   b.className = "arc-btn";
   b.addEventListener("pointerdown", stop);
   b.addEventListener("mousedown", stop);
@@ -76,27 +81,39 @@ function ensureStyle() {
   const style = document.createElement("style");
   style.id = "arc-style";
   style.textContent = `
-    .arc-wrap{display:flex;flex-direction:column;gap:6px;min-height:520px;overflow:hidden;color:#d7d7d7;font:12px sans-serif}
-    .arc-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .arc-main{display:grid;grid-template-columns:minmax(260px,1fr) 470px;gap:8px;min-height:0;flex:1}
+    .arc-wrap{display:flex;flex-direction:column;gap:7px;min-height:520px;overflow:hidden;color:#d7d7d7;font:12px sans-serif}
+    .arc-toolbar{display:flex;flex-direction:column;gap:6px}
+    .arc-toolbar-row{display:flex;align-items:center;gap:9px;min-width:0;min-height:32px}
+    .arc-toolbar-row.color{min-height:30px}
+    .arc-main{display:grid;grid-template-columns:minmax(520px,1fr) 8px minmax(380px,470px);gap:0;min-height:0;flex:1}
+    .arc-splitter{width:8px;cursor:col-resize;position:relative;touch-action:none;outline:none}
+    .arc-splitter::before{content:"";position:absolute;inset:0 2px;border-radius:3px;background:#3b3b3b;transition:background .12s,box-shadow .12s}
+    .arc-splitter:hover::before,.arc-splitter:focus-visible::before,.arc-splitter.dragging::before{background:#6f879e;box-shadow:0 0 0 1px #9cb4ca}
     .arc-canvasbox{background:#181818;border:1px solid #444;border-radius:6px;display:flex;align-items:center;justify-content:center;min-height:260px;overflow:hidden;position:relative}
     .arc-canvas{background:#fff;cursor:none;touch-action:none;max-width:100%;max-height:100%}
     .arc-canvas-layer{position:relative;display:inline-block;line-height:0}
     .arc-brush-preview{position:absolute;border:1px solid rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(0,0,0,.75),0 0 6px rgba(0,0,0,.45);border-radius:50%;pointer-events:none;display:none;box-sizing:border-box;mix-blend-mode:difference;transform:translate(-50%,-50%)}
     .arc-prompts{display:flex;flex-direction:column;gap:5px;min-width:0;background:#242424;padding:6px;border-radius:5px}
-    .arc-row{display:grid;grid-template-columns:58px 1fr;gap:6px;align-items:stretch}
+    .arc-row{display:grid;grid-template-columns:58px minmax(0,1fr) 54px;gap:6px;align-items:stretch}
     .arc-label{display:flex;align-items:center;justify-content:center;font-weight:700;border-radius:2px;color:#fff;min-height:86px;text-align:center}
     .arc-label.base{background:#4b4b4b}.arc-label.neg{background:#2b2b2b;border:1px solid #555}
     .arc-text{display:block;width:100%;height:86px;background:#1b1b1b;color:#eee;border:1px solid #333;border-radius:3px;resize:vertical;min-height:86px;padding:5px 7px;font:12px monospace;box-sizing:border-box}
-    .arc-sw{width:22px;height:22px;border:2px solid #777;border-radius:4px;cursor:pointer}
+    .arc-text.external{opacity:.58;cursor:not-allowed}
+    .arc-sw{width:26px;height:26px;border:2px solid #777;border-radius:4px;cursor:pointer}
     .arc-sw.active{border-color:#e6e6e6;box-shadow:inset 0 0 0 2px #111}
-    .arc-btn{background:#303030;color:#ddd;border:1px solid #555;border-radius:4px;padding:2px 8px;cursor:pointer}
+    .arc-btn{background:#303030;color:#ddd;border:1px solid #555;border-radius:4px;min-height:30px;padding:5px 11px;cursor:pointer;box-sizing:border-box;white-space:nowrap}
     .arc-btn:hover{border-color:#999;color:#fff}
-    .arc-range{width:110px}
+    .arc-range{width:160px}
     .arc-small{color:#aaa}
-    .arc-info{color:#b8c7d9;background:#202833;border:1px solid #45515f;border-radius:4px;padding:2px 7px;font-size:11px}
+    .arc-info{color:#b8c7d9;background:#202833;border:1px solid #45515f;border-radius:4px;min-height:30px;padding:6px 9px;font-size:11px;box-sizing:border-box;white-space:nowrap}
     .arc-settings{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-    .arc-num{width:64px;background:#202020;color:#eee;border:1px solid #555;border-radius:4px;padding:2px 6px;text-align:right;box-sizing:border-box}
+    .arc-num{width:76px;height:30px;background:#202020;color:#eee;border:1px solid #555;border-radius:4px;padding:4px 7px;text-align:right;box-sizing:border-box}
+    .arc-size-num{width:92px;font-weight:700}
+    .arc-batch-num{width:68px}
+    .arc-field-label{color:#c7c7c7;font-weight:700}
+    .arc-spacer{flex:1 1 auto}
+    .arc-input-btn{min-width:54px;height:30px;align-self:center;padding:3px 7px;font-size:11px}
+    .arc-input-btn.active{border-color:#8aa8c7;background:#26394b;color:#d9ecff}
     .arc-px{margin-left:-5px;color:#aaa}
     .arc-switch{width:16px;height:16px;accent-color:#62d45f}
   `;
@@ -116,24 +133,28 @@ app.registerExtension({
       const node = this;
       node.properties = node.properties || {};
       const markDirty = () => app.graph?.setDirtyCanvas?.(true, true);
-      function removeLegacyInputs() {
-        let index = node.inputs?.findIndex((input) => input.name === "base_prompt_in") ?? -1;
-        while (index >= 0) {
+      const promptNames = ["quality_prompt", "scene_prompt", ...COLORS.map((c) => c[2]), "negative_prompt"];
+      function removeLegacyInputs({ keepConnected = false } = {}) {
+        const legacyNames = new Set(["base_prompt_in", ...promptNames.map((name) => `${name}_in`)]);
+        for (let index = (node.inputs?.length ?? 0) - 1; index >= 0; index -= 1) {
+          const input = node.inputs[index];
+          if (!legacyNames.has(input?.name)) continue;
+          if (keepConnected && input.link != null) continue;
           node.removeInput(index);
-          index = node.inputs?.findIndex((input) => input.name === "base_prompt_in") ?? -1;
         }
       }
       removeLegacyInputs();
       const canvasData = findWidget(node, "canvas_data");
       const widthW = findWidget(node, "width");
       const heightW = findWidget(node, "height");
+      const batchW = findWidget(node, "batch_size");
       const brushW = findWidget(node, "brush_size");
       const regionStrengthW = findWidget(node, "region_strength");
       const regionalEnabledW = findWidget(node, "regional_enabled");
-      const promptNames = ["quality_prompt", "scene_prompt", ...COLORS.map((c) => c[2]), "negative_prompt"];
       node.properties.animaPrompts = node.properties.animaPrompts || {};
       const promptWidgets = promptNames.map((name) => findWidget(node, name));
       const promptTextareas = new Map();
+      const promptInputButtons = new Map();
 
       function promptValue(name) {
         const saved = node.properties.animaPrompts?.[name];
@@ -166,6 +187,7 @@ app.registerExtension({
         savePrompts();
         setSerializedWidgetValue(workflowNode, "width", Number(widthW?.value ?? 1024));
         setSerializedWidgetValue(workflowNode, "height", Number(heightW?.value ?? 1024));
+        setSerializedWidgetValue(workflowNode, "batch_size", Number(batchW?.value ?? batchNum?.value ?? 1));
         for (const name of promptNames) {
           setSerializedWidgetValue(workflowNode, name, promptValue(name));
         }
@@ -188,6 +210,7 @@ app.registerExtension({
       hideWidget(canvasData);
       hideWidget(widthW);
       hideWidget(heightW);
+      hideWidget(batchW);
       hideWidget(brushW);
       hideWidget(regionStrengthW);
       hideWidget(regionalEnabledW);
@@ -203,14 +226,27 @@ app.registerExtension({
 
       const toolbar = document.createElement("div");
       toolbar.className = "arc-toolbar";
+      const toolbarTop = document.createElement("div");
+      toolbarTop.className = "arc-toolbar-row top";
+      const toolbarBrush = document.createElement("div");
+      toolbarBrush.className = "arc-toolbar-row brush";
+      const toolbarColor = document.createElement("div");
+      toolbarColor.className = "arc-toolbar-row color";
+      toolbar.append(toolbarTop, toolbarBrush, toolbarColor);
       const mode = document.createElement("span");
       mode.className = "arc-small";
       mode.textContent = "Standard";
-      toolbar.appendChild(mode);
+      toolbarTop.appendChild(mode);
       const sizeLabel = document.createElement("span");
       sizeLabel.className = "arc-info";
       sizeLabel.title = "Canvas size, updated from connected image or loaded canvas";
-      toolbar.appendChild(sizeLabel);
+      sizeLabel.setAttribute("aria-label", sizeLabel.title);
+      toolbarTop.appendChild(sizeLabel);
+
+      const colorLabel = document.createElement("span");
+      colorLabel.className = "arc-field-label";
+      colorLabel.textContent = "Color";
+      toolbarColor.appendChild(colorLabel);
 
       let activeColor = COLORS[0][1];
       for (const [label, hex] of COLORS) {
@@ -223,19 +259,21 @@ app.registerExtension({
           toolbar.querySelectorAll(".arc-sw").forEach((x) => x.classList.remove("active"));
           sw.classList.add("active");
         });
-        toolbar.appendChild(sw);
+        sw.setAttribute("aria-label", `${label} paint color`);
+        toolbarColor.appendChild(sw);
       }
 
       const white = document.createElement("button");
       white.className = "arc-sw";
       white.style.background = "#ffffff";
-      white.title = "ERASE / WHITE";
+      white.title = "Erase painted regions by painting white";
+      white.setAttribute("aria-label", white.title);
       white.addEventListener("click", () => {
         activeColor = "#ffffff";
         toolbar.querySelectorAll(".arc-sw").forEach((x) => x.classList.remove("active"));
         white.classList.add("active");
       });
-      toolbar.appendChild(white);
+      toolbarColor.appendChild(white);
 
       const brushLabel = document.createElement("span");
       brushLabel.className = "arc-small";
@@ -273,10 +311,7 @@ app.registerExtension({
       brush.addEventListener("pointerdown", stop);
       brushNum.addEventListener("pointerdown", stop);
       syncBrush(false);
-      toolbar.appendChild(brushLabel);
-      toolbar.appendChild(brushNum);
-      toolbar.appendChild(brushPx);
-      toolbar.appendChild(brush);
+      toolbarBrush.append(brushLabel, brushNum, brushPx, brush);
 
       const opacity = document.createElement("input");
       opacity.type = "range";
@@ -306,7 +341,7 @@ app.registerExtension({
       opacityNum.addEventListener("input", () => syncOpacity(opacityNum.value));
       opacity.addEventListener("pointerdown", stop);
       opacityNum.addEventListener("pointerdown", stop);
-      toolbar.append(opacityLabel, opacity, opacityNum);
+      toolbarBrush.append(opacityLabel, opacityNum, opacity);
 
       const stepSize = document.createElement("input");
       stepSize.type = "range";
@@ -336,11 +371,11 @@ app.registerExtension({
       stepNum.addEventListener("input", () => syncStep(stepNum.value));
       stepSize.addEventListener("pointerdown", stop);
       stepNum.addEventListener("pointerdown", stop);
-      toolbar.append(stepLabel, stepSize, stepNum);
+      toolbarBrush.append(stepLabel, stepNum, stepSize);
 
-      const undo = makeButton("Undo", "Undo");
-      const clear = makeButton("Clear", "Clear canvas");
-      const resetBrush = makeButton("Reset", "Reset brush settings");
+      const undo = makeButton("Undo", "Undo the last canvas edit");
+      const clear = makeButton("Clear", "Clear the painted canvas. Undo remains available.");
+      const resetBrush = makeButton("Reset Brush", "Reset Brush, Opacity, and Step to their defaults");
       const loadCanvasButton = makeButton("Load Canvas", "Load a saved canvas PNG or image");
       const saveCanvasButton = makeButton("Save Canvas", "Save painted color canvas as PNG");
       const loadCanvasInput = document.createElement("input");
@@ -356,7 +391,7 @@ app.registerExtension({
       canvasWNum.max = "16384";
       canvasWNum.step = "8";
       canvasWNum.value = widthW?.value ?? 1024;
-      canvasWNum.className = "arc-num";
+      canvasWNum.className = "arc-num arc-size-num";
       canvasWNum.title = "Canvas width. Apply on change or Enter.";
       const canvasHNum = document.createElement("input");
       canvasHNum.type = "number";
@@ -364,27 +399,66 @@ app.registerExtension({
       canvasHNum.max = "16384";
       canvasHNum.step = "8";
       canvasHNum.value = heightW?.value ?? 1024;
-      canvasHNum.className = "arc-num";
+      canvasHNum.className = "arc-num arc-size-num";
       canvasHNum.title = "Canvas height. Apply on change or Enter.";
       canvasWNum.addEventListener("pointerdown", stop);
       canvasWNum.addEventListener("mousedown", stop);
       canvasHNum.addEventListener("pointerdown", stop);
       canvasHNum.addEventListener("mousedown", stop);
+      canvasWNum.setAttribute("aria-label", canvasWNum.title);
+      canvasHNum.setAttribute("aria-label", canvasHNum.title);
+
+      const batchNum = document.createElement("input");
+      batchNum.type = "number";
+      batchNum.min = "1";
+      batchNum.max = "4096";
+      batchNum.step = "1";
+      batchNum.value = batchW?.value ?? 1;
+      batchNum.className = "arc-num arc-batch-num";
+      batchNum.title = "Number of images generated in one batch";
+      batchNum.setAttribute("aria-label", batchNum.title);
+      const syncBatch = () => {
+        const value = Math.max(1, Math.min(4096, Math.round(Number(batchNum.value) || 1)));
+        batchNum.value = String(value);
+        if (batchW) batchW.value = value;
+        markDirty();
+      };
+      batchNum.addEventListener("input", syncBatch);
+      batchNum.addEventListener("change", syncBatch);
+      batchNum.addEventListener("pointerdown", stop);
+      batchNum.addEventListener("mousedown", stop);
       resetBrush.addEventListener("click", () => {
         brush.value = "92";
         syncBrush();
         syncOpacity(1);
         syncStep(18);
       });
-      toolbar.appendChild(undo);
-      toolbar.appendChild(clear);
-      toolbar.appendChild(resetBrush);
-      toolbar.appendChild(saveCanvasButton);
-      toolbar.appendChild(loadCanvasButton);
-      toolbar.appendChild(canvasWNum);
-      toolbar.appendChild(canvasHNum);
-      toolbar.appendChild(resizeCanvasButton);
-      toolbar.appendChild(loadCanvasInput);
+      const widthLabel = document.createElement("span");
+      widthLabel.className = "arc-field-label";
+      widthLabel.textContent = "W";
+      const heightLabel = document.createElement("span");
+      heightLabel.className = "arc-field-label";
+      heightLabel.textContent = "H";
+      toolbarTop.append(
+        widthLabel,
+        canvasWNum,
+        heightLabel,
+        canvasHNum,
+        resizeCanvasButton,
+        loadCanvasButton,
+        saveCanvasButton,
+        undo,
+        clear,
+        loadCanvasInput,
+      );
+      toolbarBrush.appendChild(resetBrush);
+      const colorSpacer = document.createElement("span");
+      colorSpacer.className = "arc-spacer";
+      const batchLabel = document.createElement("span");
+      batchLabel.className = "arc-field-label";
+      batchLabel.textContent = "Batch Size";
+      batchLabel.title = batchNum.title;
+      toolbarColor.append(colorSpacer, batchLabel, batchNum);
       wrap.appendChild(toolbar);
 
       const main = document.createElement("div");
@@ -489,6 +563,51 @@ app.registerExtension({
       canvasWNum.addEventListener("keydown", commitSizeOnEnter);
       canvasHNum.addEventListener("keydown", commitSizeOnEnter);
 
+      function promptInputSlot(name) {
+        return node.inputs?.find((input) => input.name === `${name}_in`) || null;
+      }
+      function syncPromptInputModes() {
+        for (const name of promptNames) {
+          const input = promptInputSlot(name);
+          const external = Boolean(input);
+          const connected = input?.link != null;
+          const textarea = promptTextareas.get(name);
+          const button = promptInputButtons.get(name);
+          if (textarea) {
+            textarea.disabled = external;
+            textarea.classList.toggle("external", external);
+            textarea.title = external
+              ? (connected ? "External STRING input connected" : "External input mode. Connect a STRING input.")
+              : textarea.placeholder;
+          }
+          if (button) {
+            button.classList.toggle("active", external);
+            button.textContent = external ? "IN ON" : "← IN";
+            button.setAttribute("aria-pressed", String(external));
+            button.title = external
+              ? (connected ? "Disconnect the STRING cable before returning to local text" : "Return to local text input")
+              : "Show an external STRING input for Text Multiline or another text node";
+            button.setAttribute("aria-label", button.title);
+          }
+        }
+      }
+      function togglePromptInput(name) {
+        const input = promptInputSlot(name);
+        if (input) {
+          if (input.link != null) {
+            syncPromptInputModes();
+            return;
+          }
+          const index = node.inputs?.indexOf(input) ?? -1;
+          if (index >= 0) node.removeInput(index);
+        } else {
+          savePrompts();
+          node.addInput(`${name}_in`, "STRING");
+        }
+        syncPromptInputModes();
+        markDirty();
+      }
+
       const prompts = document.createElement("div");
       prompts.className = "arc-prompts";
       const promptRows = [
@@ -530,11 +649,75 @@ app.registerExtension({
         t.addEventListener("blur", commitPrompt);
         t.addEventListener("pointerdown", stop);
         t.addEventListener("mousedown", stop);
-        row.append(l, t);
+        const inputButton = makeButton("← IN", "Show an external STRING input for Text Multiline or another text node");
+        inputButton.classList.add("arc-input-btn");
+        inputButton.setAttribute("aria-pressed", "false");
+        inputButton.addEventListener("click", () => togglePromptInput(widgetName));
+        promptInputButtons.set(widgetName, inputButton);
+        row.append(l, t, inputButton);
         prompts.appendChild(row);
       }
 
-      main.append(canvasBox, prompts);
+      const splitter = document.createElement("div");
+      splitter.className = "arc-splitter";
+      splitter.tabIndex = 0;
+      splitter.setAttribute("role", "separator");
+      splitter.setAttribute("aria-orientation", "vertical");
+      splitter.title = "Drag to resize the canvas and prompt panels. Double-click to reset.";
+      splitter.setAttribute("aria-label", splitter.title);
+      let currentSplitRatio = Number(node.properties.arcSplitRatio);
+      if (!Number.isFinite(currentSplitRatio)) currentSplitRatio = DEFAULT_SPLIT_RATIO;
+      currentSplitRatio = Math.max(0.2, Math.min(0.8, currentSplitRatio));
+      function applySplit(ratio = currentSplitRatio, persist = false) {
+        const available = main.clientWidth - SPLITTER_WIDTH;
+        if (available <= 0) return;
+        const minCanvas = Math.min(MIN_CANVAS_WIDTH, Math.max(260, available - MIN_PROMPTS_WIDTH));
+        const minPrompts = Math.min(MIN_PROMPTS_WIDTH, Math.max(300, available - minCanvas));
+        const canvasWidth = Math.max(minCanvas, Math.min(available - minPrompts, available * ratio));
+        currentSplitRatio = canvasWidth / available;
+        main.style.gridTemplateColumns = `${Math.round(canvasWidth)}px ${SPLITTER_WIDTH}px minmax(0,1fr)`;
+        splitter.setAttribute("aria-valuenow", String(Math.round(currentSplitRatio * 100)));
+        if (persist) {
+          node.properties.arcSplitRatio = currentSplitRatio;
+          markDirty();
+        }
+        requestAnimationFrame(fitCanvas);
+      }
+      function applySplitFromPointer(event, persist = true) {
+        const rect = main.getBoundingClientRect();
+        const available = rect.width - SPLITTER_WIDTH;
+        if (available <= 0) return;
+        applySplit((event.clientX - rect.left) / available, persist);
+      }
+      splitter.addEventListener("pointerdown", (event) => {
+        stop(event);
+        event.preventDefault();
+        splitter.classList.add("dragging");
+        splitter.setPointerCapture?.(event.pointerId);
+        applySplitFromPointer(event);
+      });
+      splitter.addEventListener("pointermove", (event) => {
+        if (!splitter.hasPointerCapture?.(event.pointerId)) return;
+        stop(event);
+        applySplitFromPointer(event);
+      });
+      const finishSplitDrag = (event) => {
+        if (splitter.hasPointerCapture?.(event.pointerId)) splitter.releasePointerCapture?.(event.pointerId);
+        splitter.classList.remove("dragging");
+      };
+      splitter.addEventListener("pointerup", finishSplitDrag);
+      splitter.addEventListener("pointercancel", finishSplitDrag);
+      splitter.addEventListener("dblclick", (event) => {
+        stop(event);
+        applySplit(DEFAULT_SPLIT_RATIO, true);
+      });
+      splitter.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        applySplit(currentSplitRatio + (event.key === "ArrowRight" ? 0.02 : -0.02), true);
+      });
+
+      main.append(canvasBox, splitter, prompts);
       wrap.appendChild(main);
 
       const history = [];
@@ -548,6 +731,7 @@ app.registerExtension({
       let isRestoringCanvas = false;
       let lastDisplayStyle = { width: "", height: "" };
       let canvasResizeObserver = null;
+      let splitResizeObserver = null;
       function visibleCanvasBox() {
         return canvasBox.isConnected && canvasBox.clientWidth > 16 && canvasBox.clientHeight > 16;
       }
@@ -580,7 +764,7 @@ app.registerExtension({
         if (heightW && canvas.height) heightW.value = canvas.height;
         if (canvasWNum && canvas.width && document.activeElement !== canvasWNum) canvasWNum.value = canvas.width;
         if (canvasHNum && canvas.height && document.activeElement !== canvasHNum) canvasHNum.value = canvas.height;
-        if (sizeLabel && canvas.width && canvas.height) sizeLabel.textContent = `Canvas ${canvas.width} x ${canvas.height}`;
+        if (sizeLabel && canvas.width && canvas.height) sizeLabel.textContent = `Current Canvas ${canvas.width} x ${canvas.height}`;
       }
       function syncCanvasSize(keep = false, force = false) {
         const { w, h } = dims();
@@ -961,8 +1145,15 @@ app.registerExtension({
           workflowNode.properties.animaPrompts = { ...node.properties.animaPrompts };
           workflowNode.properties.arcCanvasData = node.properties.arcCanvasData || canvasData?.value || "";
           workflowNode.properties.arcCanvasSizeVersion = CANVAS_SIZE_VERSION;
+          workflowNode.properties.arcSplitRatio = currentSplitRatio;
           writeSerializedValues(workflowNode);
         }
+      };
+
+      const oldConnectionsChange = node.onConnectionsChange;
+      node.onConnectionsChange = function () {
+        oldConnectionsChange?.apply(this, arguments);
+        requestAnimationFrame(syncPromptInputModes);
       };
 
       const oldConfigure = node.onConfigure;
@@ -976,8 +1167,9 @@ app.registerExtension({
         oldConfigure?.apply(this, arguments);
         node.properties = node.properties || {};
         node.properties.animaPrompts = node.properties.animaPrompts || {};
-        removeLegacyInputs();
+        removeLegacyInputs({ keepConnected: true });
         syncPromptTextareas();
+        batchNum.value = String(Math.max(1, Math.round(Number(batchW?.value) || 1)));
         const serializedCanvas = hasWorkflowCanvasData
           ? String(workflowProperties.arcCanvasData || "")
           : String(canvasData?.value || "");
@@ -1001,7 +1193,13 @@ app.registerExtension({
         } else if (!restoreCanvasFromText(existingCanvas)) {
           resetCanvas(false);
         }
-        requestAnimationFrame(fitCanvas);
+        const configuredSplit = Number(node.properties.arcSplitRatio);
+        if (Number.isFinite(configuredSplit)) currentSplitRatio = configuredSplit;
+        requestAnimationFrame(() => {
+          syncPromptInputModes();
+          applySplit(currentSplitRatio);
+          fitCanvas();
+        });
       };
       const flushOnVisibilityChange = () => {
         if (document.visibilityState === "hidden") saveData();
@@ -1014,7 +1212,10 @@ app.registerExtension({
       document.addEventListener("visibilitychange", flushOnVisibilityChange);
       canvasResizeObserver = new ResizeObserver(onResizeVisible);
       canvasResizeObserver.observe(canvasBox);
+      splitResizeObserver = new ResizeObserver(() => applySplit(currentSplitRatio));
+      splitResizeObserver.observe(main);
       syncPromptTextareas();
+      syncPromptInputModes();
 
       node.addDOMWidget("anima_canvas_editor", "AnimaRegionalCanvasEditor", wrap, {
         serialize: false,
@@ -1029,7 +1230,10 @@ app.registerExtension({
       const originalResize = node.onResize;
       node.onResize = function () {
         originalResize?.apply(this, arguments);
-        requestAnimationFrame(fitCanvas);
+        requestAnimationFrame(() => {
+          applySplit(currentSplitRatio);
+          fitCanvas();
+        });
       };
       const originalRemoved = node.onRemoved;
       node.onRemoved = function () {
@@ -1039,9 +1243,13 @@ app.registerExtension({
         window.removeEventListener("blur", saveData);
         document.removeEventListener("visibilitychange", flushOnVisibilityChange);
         canvasResizeObserver?.disconnect?.();
+        splitResizeObserver?.disconnect?.();
         originalRemoved?.apply(this, arguments);
       };
-      requestAnimationFrame(fitCanvas);
+      requestAnimationFrame(() => {
+        applySplit(currentSplitRatio);
+        fitCanvas();
+      });
     };
   },
 });

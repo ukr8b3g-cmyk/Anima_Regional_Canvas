@@ -1,8 +1,8 @@
 {
   "id": "406bd9e7-c57d-48e0-a529-b2f8f84cc5c7",
   "revision": 0,
-  "last_node_id": 84,
-  "last_link_id": 235,
+  "last_node_id": 97,
+  "last_link_id": 236,
   "nodes": [
     {
       "id": 11,
@@ -13,16 +13,21 @@
       ],
       "size": [
         340,
-        220
+        170
       ],
       "flags": {},
-      "order": 6,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
           "name": "model",
           "type": "MODEL",
           "link": 213
+        },
+        {
+          "name": "model_patch",
+          "type": "MODEL_PATCH",
+          "link": 236
         },
         {
           "name": "image",
@@ -46,16 +51,15 @@
         }
       ],
       "properties": {
-        "aux_id": "kohya-ss/ComfyUI-Anima-LLLite",
+        "cnr_id": "comfy-core",
         "ver": "c8ad372b3adea39bb1aa37db9e278978bef2c222",
-        "Node name for S&R": "AnimaLLLiteApply"
+        "Node name for S&R": "AnimaLLLiteApply",
+        "aux_id": "kohya-ss/ComfyUI-Anima-LLLite"
       },
       "widgets_values": [
-        "anima-lllite-regional-exp-v3.safetensors",
         1,
         0,
-        0.45,
-        true
+        1
       ]
     },
     {
@@ -139,7 +143,7 @@
         90
       ],
       "flags": {},
-      "order": 4,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -179,7 +183,7 @@
         470
       ],
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -248,7 +252,7 @@
         740
       ],
       "flags": {},
-      "order": 2,
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -287,7 +291,7 @@
         1290
       ],
       "flags": {},
-      "order": 9,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -322,7 +326,7 @@
         50
       ],
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -364,7 +368,7 @@
         1310
       ],
       "flags": {},
-      "order": 5,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -382,54 +386,6 @@
           "shape": 7,
           "type": "VAE",
           "link": 231
-        },
-        {
-          "name": "quality_prompt_in",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
-        },
-        {
-          "name": "scene_prompt_in",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
-        },
-        {
-          "name": "red_prompt_in",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
-        },
-        {
-          "name": "blue_prompt_in",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
-        },
-        {
-          "name": "yellow_prompt_in",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
-        },
-        {
-          "name": "green_prompt_in",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
-        },
-        {
-          "name": "magenta_prompt_in",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
-        },
-        {
-          "name": "negative_prompt_in",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
         },
         {
           "name": "image",
@@ -535,7 +491,7 @@
         90
       ],
       "flags": {},
-      "order": 3,
+      "order": 4,
       "mode": 0,
       "showAdvanced": false,
       "inputs": [
@@ -567,6 +523,39 @@
         "ANIMA\\waiANIMA_v10Base10.safetensors",
         "default"
       ]
+    },
+    {
+      "id": 97,
+      "type": "ModelPatchLoader",
+      "pos": [
+        2210,
+        -900
+      ],
+      "size": [
+        340,
+        60
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL_PATCH",
+          "type": "MODEL_PATCH",
+          "links": [
+            236
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.33.1",
+        "Node name for S&R": "ModelPatchLoader"
+      },
+      "widgets_values": [
+        "anima-lllite-regional-exp-v3.safetensors"
+      ]
     }
   ],
   "links": [
@@ -583,7 +572,7 @@
       80,
       0,
       11,
-      1,
+      2,
       "IMAGE"
     ],
     [
@@ -655,7 +644,7 @@
       70,
       0,
       80,
-      11,
+      3,
       "IMAGE"
     ],
     [
@@ -681,6 +670,14 @@
       84,
       0,
       "IMAGE"
+    ],
+    [
+      236,
+      97,
+      0,
+      11,
+      1,
+      "MODEL_PATCH"
     ]
   ],
   "groups": [
