@@ -1,0 +1,25 @@
+name: Regression checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python syntax
+        run: python -m py_compile __init__.py nodes.py
+      - name: Workflow integrity
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+      - name: JavaScript syntax
+        run: node --check web/anima_regional_canvas.js
+      - name: Frontend contract
+        run: node tests/test_frontend_contract.mjs

@@ -1,9 +1,19 @@
 # Anima Regional Canvas
 [日本語はこちら](#日本語)
 
-**Current version: 2.0**
+**Current version: 2.0.1**
 
 <img width="1712" height="745" alt="Clip_7" src="https://github.com/user-attachments/assets/73c40c9b-d6b1-4eab-a3e7-0baf36a4f8af" />
+
+## Version 2.0.1 Maintenance
+
+- Canvas Undo history now uses a 128 MiB memory budget and restores the previous canvas dimensions after a resize.
+- Painting no longer PNG-encodes the entire canvas every 250 ms; the serialized mask is updated when an edit is committed.
+- Canvas PNG data is stored once in `canvas_data`; the legacy duplicate `properties.arcCanvasData` is migrated on load and removed on save.
+- Browser backup keys are scoped by workflow graph and node ID, with migration from the old unscoped key.
+- The interactive canvas is capped at 4096×4096 for browser memory safety. Python/API validation keeps the existing backend limit.
+- Size polling was removed. Connected-image refresh now runs only for the Inpaint node and pauses while the document is hidden.
+- Added lightweight regression checks for Python syntax, JavaScript syntax/contracts, and bundled workflow JSON.
 
 ## Version 2.0 Update
 
@@ -305,9 +315,19 @@ MIT License. See [LICENSE](LICENSE).
 
 [English](#anima-regional-canvas)
 
-**現在のバージョン：2.0**
+**現在のバージョン：2.0.1**
 
 ANIMA向けの色分けリージョナルキャンバスノードです。ComfyUI上で領域を色分けして描画し、各色に対応するプロンプトのマスク付きConditioningと、`Apply Anima LLLite`用のカラー画像を出力します。
+
+## バージョン2.0.1 メンテナンス
+
+- Undo履歴を128 MiBのメモリ予算制に変更し、Resize前のCanvasサイズもUndoで復元します。
+- 描画中250msごとに行っていたCanvas全体のPNG/Base64化を廃止し、編集確定時に保存します。
+- Canvas PNGは`canvas_data`へ1回だけ保存し、旧`properties.arcCanvasData`は読込時に移行して保存時に削除します。
+- ブラウザバックアップをWorkflow Graph ID＋Node IDで分離し、旧キーからの移行も行います。
+- ブラウザのメモリ保護のため、対話Canvasの最大サイズを4096×4096に制限します。Python/API側の既存上限は維持します。
+- Canvasサイズの常時ポーリングを削除し、接続画像の監視はInpaintノードだけで、非表示時は停止します。
+- Python/JavaScript/同梱Workflow向けの軽量回帰チェックを追加しました。
 
 ## バージョン2.0 更新内容
 

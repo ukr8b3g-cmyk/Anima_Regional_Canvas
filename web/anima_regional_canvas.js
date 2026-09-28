@@ -9,9 +9,14 @@ const COLORS = [
   ["MAGENTA", "#ff00ff", "magenta_prompt"],
 ];
 const HISTORY_LIMIT = 8;
+const HISTORY_MEMORY_BUDGET = 128 * 1024 * 1024;
 const MAX_STROKE_POINTS = 96;
+const MAX_CANVAS_DIMENSION = 4096;
+const SOURCE_REFRESH_MS = 1500;
 const STANDARD_NODE_SIZE = [1430, 1270];
 const ARC_BACKUP_PREFIX = "anima_regional_canvas:";
+const ZERO_GRAPH_ID = "00000000-0000-0000-0000-000000000000";
+const graphBackupScopes = new WeakMap();
 const CANVAS_SIZE_VERSION = 1;
 const DEFAULT_SPLIT_RATIO = 0.68;
 const MIN_CANVAS_WIDTH = 520;
@@ -29,13 +34,45 @@ function hideWidget(widget) {
   widget.serialize = true;
 }
 
+function graphBackupScope(node) {
+  const graph = node.graph?.rootGraph || node.graph;
+  if (!graph) return "";
+  const graphId = String(graph.id ?? "");
+  if (graphId && graphId !== ZERO_GRAPH_ID) return graphId;
+  let scope = graphBackupScopes.get(graph);
+  if (!scope) {
+    scope = globalThis.crypto?.randomUUID?.() || `runtime-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    graphBackupScopes.set(graph, scope);
+  }
+  return scope;
+}
+
 function canvasBackupKey(node) {
-  return `${ARC_BACKUP_PREFIX}${node.type}:${node.id}`;
+  const scope = graphBackupScope(node);
+  const nodeId = node.id;
+  if (!scope || nodeId == null || String(nodeId) === "-1") return "";
+  return `${ARC_BACKUP_PREFIX}${scope}:${node.type}:${nodeId}`;
+}
+
+function legacyCanvasBackupKey(node) {
+  const nodeId = node.id;
+  if (nodeId == null || String(nodeId) === "-1") return "";
+  return `${ARC_BACKUP_PREFIX}${node.type}:${nodeId}`;
 }
 
 function readCanvasBackup(node) {
   try {
-    return localStorage.getItem(canvasBackupKey(node)) || "";
+    const key = canvasBackupKey(node);
+    if (!key) return "";
+    const scoped = localStorage.getItem(key) || "";
+    if (scoped) return scoped;
+    const legacyKey = legacyCanvasBackupKey(node);
+    const legacy = legacyKey ? localStorage.getItem(legacyKey) || "" : "";
+    if (legacy) {
+      localStorage.setItem(key, legacy);
+      localStorage.removeItem(legacyKey);
+    }
+    return legacy;
   } catch (_) {
     return "";
   }
@@ -43,7 +80,10 @@ function readCanvasBackup(node) {
 
 function writeCanvasBackup(node, payload) {
   try {
-    localStorage.setItem(canvasBackupKey(node), payload || "");
+    const key = canvasBackupKey(node);
+    if (!key) return;
+    if (payload) localStorage.setItem(key, payload);
+    else localStorage.removeItem(key);
   } catch (_) {}
 }
 
@@ -388,7 +428,7 @@ app.registerExtension({
       const canvasWNum = document.createElement("input");
       canvasWNum.type = "number";
       canvasWNum.min = "16";
-      canvasWNum.max = "16384";
+      canvasWNum.max = String(MAX_CANVAS_DIMENSION);
       canvasWNum.step = "8";
       canvasWNum.value = widthW?.value ?? 1024;
       canvasWNum.className = "arc-num arc-size-num";
@@ -396,7 +436,7 @@ app.registerExtension({
       const canvasHNum = document.createElement("input");
       canvasHNum.type = "number";
       canvasHNum.min = "16";
-      canvasHNum.max = "16384";
+      canvasHNum.max = String(MAX_CANVAS_DIMENSION);
       canvasHNum.step = "8";
       canvasHNum.value = heightW?.value ?? 1024;
       canvasHNum.className = "arc-num arc-size-num";
@@ -721,7 +761,7 @@ app.registerExtension({
       wrap.appendChild(main);
 
       const history = [];
-      let saveTimer = null;
+      let historyBytes = 0;
       let resizeTimer = null;
       let lastWidth = null;
       let lastHeight = null;
@@ -738,7 +778,7 @@ app.registerExtension({
       function safeDimension(value, fallback) {
         const n = Math.round(Number(value));
         const base = Number.isFinite(n) && n >= 16 ? n : Math.round(Number(fallback) || 1024);
-        return Math.min(16384, Math.max(16, Math.floor(base / 8) * 8));
+        return Math.min(MAX_CANVAS_DIMENSION, Math.max(16, Math.floor(base / 8) * 8));
       }
       function markCanvasSizeInitialized() {
         node.properties.arcCanvasSizeVersion = CANVAS_SIZE_VERSION;
@@ -779,20 +819,16 @@ app.registerExtension({
         }, 120);
       }
       function saveData(options = {}) {
-        if (saveTimer) {
-          clearTimeout(saveTimer);
-          saveTimer = null;
-        }
         const painted = maskHasPaint();
         markCanvasSizeInitialized();
         const payload = JSON.stringify({
           version: 2,
           width: maskCanvas.width,
           height: maskCanvas.height,
-          data_url: maskCanvas.toDataURL("image/png"),
+          data_url: painted ? maskCanvas.toDataURL("image/png") : "",
         });
         if (canvasData) canvasData.value = payload;
-        node.properties.arcCanvasData = payload;
+        delete node.properties.arcCanvasData;
         if (options.clearBackup) {
           writeCanvasBackup(node, "");
         } else if (painted || canvasEdited || hasCanvasContent || options.forceBackup) {
@@ -801,18 +837,25 @@ app.registerExtension({
         hasCanvasContent = painted || canvasEdited || hasCanvasContent;
         markDirty();
       }
-      function scheduleSaveData() {
-        if (saveTimer) return;
-        saveTimer = setTimeout(saveData, 250);
-      }
       function pushHistory() {
+        const width = canvas.width;
+        const height = canvas.height;
+        const bytes = width * height * 4 * 2;
+        if (!Number.isFinite(bytes) || bytes <= 0 || bytes > HISTORY_MEMORY_BUDGET) return;
         try {
           history.push({
-            display: ctx.getImageData(0, 0, canvas.width, canvas.height),
-            mask: maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height),
+            width,
+            height,
+            bytes,
+            display: ctx.getImageData(0, 0, width, height),
+            mask: maskCtx.getImageData(0, 0, width, height),
           });
+          historyBytes += bytes;
+          while (history.length > HISTORY_LIMIT || historyBytes > HISTORY_MEMORY_BUDGET) {
+            const removed = history.shift();
+            historyBytes = Math.max(0, historyBytes - Number(removed?.bytes || 0));
+          }
         } catch (_) {}
-        if (history.length > HISTORY_LIMIT) history.shift();
       }
       function cloneCanvas(src) {
         if (!src?.width || !src?.height) return null;
@@ -1042,7 +1085,7 @@ app.registerExtension({
         drawing = true;
         lastPoint = eventPoint(ev);
         drawSmooth(lastPoint, lastPoint);
-        scheduleSaveData();
+        markDirty();
       });
       canvas.addEventListener("pointermove", (ev) => {
         updateBrushPreview(ev);
@@ -1060,7 +1103,7 @@ app.registerExtension({
         const p = eventPoint(ev);
         drawSmooth(lastPoint || p, p);
         lastPoint = p;
-        scheduleSaveData();
+        markDirty();
       });
       const endPointer = (ev) => {
         if (brushAdjust && ev.pointerId === brushAdjust.pointerId) {
@@ -1081,9 +1124,25 @@ app.registerExtension({
       undo.addEventListener("click", () => {
         const prev = history.pop();
         if (!prev) return;
+        historyBytes = Math.max(0, historyBytes - Number(prev.bytes || 0));
+        if (canvas.width !== prev.width || canvas.height !== prev.height) {
+          lastWidth = prev.width;
+          lastHeight = prev.height;
+          if (widthW) widthW.value = prev.width;
+          if (heightW) heightW.value = prev.height;
+          canvasWNum.value = String(prev.width);
+          canvasHNum.value = String(prev.height);
+          canvas.width = prev.width;
+          canvas.height = prev.height;
+          maskCanvas.width = prev.width;
+          maskCanvas.height = prev.height;
+          ctx.imageSmoothingEnabled = false;
+          maskCtx.imageSmoothingEnabled = false;
+        }
         ctx.putImageData(prev.display, 0, 0);
         maskCtx.putImageData(prev.mask, 0, 0);
         canvasEdited = maskHasPaint();
+        fitCanvas();
         saveData();
       });
       clear.addEventListener("click", () => {
@@ -1148,11 +1207,17 @@ app.registerExtension({
       const oldHeight = heightW?.callback;
       if (widthW) widthW.callback = function () { oldWidth?.apply(this, arguments); scheduleResizePreserve(true); };
       if (heightW) heightW.callback = function () { oldHeight?.apply(this, arguments); scheduleResizePreserve(true); };
-      const sizePoll = setInterval(() => {
-        if (visibleCanvasBox()) syncCanvasSize(true);
-      }, 250);
-      const sourcePoll = setInterval(() => loadConnectedImage(false), 1000);
-      setTimeout(() => loadConnectedImage(false), 100);
+      let sourcePoll = null;
+      const pollConnectedImage = () => {
+        sourcePoll = null;
+        if (!node.graph) return;
+        if (document.visibilityState === "visible" && visibleCanvasBox()) loadConnectedImage(false);
+        sourcePoll = setTimeout(pollConnectedImage, SOURCE_REFRESH_MS);
+      };
+      if (nodeData.name === "AnimaRegionalInpaintCanvas") {
+        sourcePoll = setTimeout(pollConnectedImage, SOURCE_REFRESH_MS);
+        setTimeout(() => loadConnectedImage(false), 100);
+      }
 
       const oldSerialize = node.onSerialize;
       node.onSerialize = function (workflowNode) {
@@ -1162,9 +1227,10 @@ app.registerExtension({
         if (workflowNode) {
           workflowNode.properties = workflowNode.properties || {};
           workflowNode.properties.animaPrompts = { ...node.properties.animaPrompts };
-          workflowNode.properties.arcCanvasData = node.properties.arcCanvasData || canvasData?.value || "";
           workflowNode.properties.arcCanvasSizeVersion = CANVAS_SIZE_VERSION;
           workflowNode.properties.arcSplitRatio = currentSplitRatio;
+          delete workflowNode.properties.arcCanvasData;
+          delete node.properties.arcCanvasData;
           writeSerializedValues(workflowNode);
         }
       };
@@ -1182,7 +1248,9 @@ app.registerExtension({
       node.onConfigure = function () {
         const workflowInfo = arguments[0] || {};
         const workflowProperties = workflowInfo.properties || {};
-        const hasWorkflowCanvasData = Object.prototype.hasOwnProperty.call(workflowProperties, "arcCanvasData");
+        const legacyCanvasData = Object.prototype.hasOwnProperty.call(workflowProperties, "arcCanvasData")
+          ? String(workflowProperties.arcCanvasData || "")
+          : "";
         const workflowWidgetValues = Array.isArray(workflowInfo.widgets_values)
           ? workflowInfo.widgets_values
           : [];
@@ -1192,10 +1260,8 @@ app.registerExtension({
         removeLegacyInputs({ keepConnected: true });
         syncPromptTextareas();
         batchNum.value = String(Math.max(1, Math.round(Number(batchW?.value) || 1)));
-        const serializedCanvas = hasWorkflowCanvasData
-          ? String(workflowProperties.arcCanvasData || "")
-          : String(canvasData?.value || "");
-        if (hasWorkflowCanvasData || !serializedCanvas) node.properties.arcCanvasData = serializedCanvas;
+        const serializedCanvas = String(canvasData?.value || legacyCanvasData || "");
+        delete node.properties.arcCanvasData;
         const existingCanvas = serializedCanvas || readCanvasBackup(node);
         const payloadSize = canvasPayloadDimensions(existingCanvas);
         const workflowSizeVersion = Number(workflowProperties.arcCanvasSizeVersion || 0);
@@ -1260,8 +1326,9 @@ app.registerExtension({
       const originalRemoved = node.onRemoved;
       node.onRemoved = function () {
         saveData();
-        clearInterval(sizePoll);
-        clearInterval(sourcePoll);
+        if (sourcePoll) clearTimeout(sourcePoll);
+        history.length = 0;
+        historyBytes = 0;
         window.removeEventListener("blur", saveData);
         document.removeEventListener("visibilitychange", flushOnVisibilityChange);
         canvasResizeObserver?.disconnect?.();
