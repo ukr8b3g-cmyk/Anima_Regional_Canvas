@@ -3,3 +3,6 @@ __pycache__/
 *.py[cod]
 .DS_Store
 Thumbs.db
+
+# Release automation is development tooling, not part of the node package.
+/.github/

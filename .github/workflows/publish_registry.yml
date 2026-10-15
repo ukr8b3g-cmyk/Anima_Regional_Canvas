@@ -1,0 +1,131 @@
+name: Publish formal release to Comfy Registry
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Already published stable Release tag, e.g. v1.2.3'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      release_tag:
+        required: true
+        type: string
+    secrets:
+      REGISTRY_ACCESS_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    if: github.repository == 'ukr8b3g-cmyk/Anima_Regional_Canvas' && ((github.event_name == 'release' && !github.event.release.draft && !github.event.release.prerelease) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out publication tooling
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: control
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Require a formal Release and resolve its exact tag commit
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -B control/.github/registry_release.py resolve --policy control/.github/registry-policy.json --tag "$RELEASE_TAG"
+
+  publish:
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Different versions never replace each other's pending publication.
+    # v1.2.3 and 1.2.3 resolve to the same version and share this job lock.
+    concurrency:
+      group: comfy-registry-${{ github.repository }}-${{ needs.resolve.outputs.version }}
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out publication tooling
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: control
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Stop for existing versions or API errors without republishing
+        id: preflight
+        run: python -B control/.github/registry_release.py preflight --policy control/.github/registry-policy.json --tag "$RELEASE_TAG"
+      - name: Check out exact release source
+        if: steps.preflight.outputs.publish == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          path: source
+          persist-credentials: false
+          clean: true
+      - name: Install pinned official publishing CLI
+        if: steps.preflight.outputs.publish == 'true'
+        run: python -m pip install --disable-pip-version-check comfy-cli==1.22.0
+      - name: Record clean release package manifest
+        if: steps.preflight.outputs.publish == 'true'
+        env:
+          SOURCE_SHA: ${{ needs.resolve.outputs.sha }}
+        run: python -B control/.github/registry_release.py manifest --policy control/.github/registry-policy.json --tag "$RELEASE_TAG"
+      - name: Pack release without importing product code
+        if: steps.preflight.outputs.publish == 'true'
+        working-directory: source
+        run: comfy --skip-prompt --no-enable-telemetry node pack
+      - name: Verify every archive path, size and SHA256
+        if: steps.preflight.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B control/.github/registry_release.py audit --policy control/.github/registry-policy.json --tag "$RELEASE_TAG"
+          mv source/node.zip "$RUNNER_TEMP/verified-node.zip"
+          test -z "$(git -C source status --porcelain --untracked-files=all --ignored)"
+      - name: Final duplicate check immediately before publishing
+        if: steps.preflight.outputs.publish == 'true'
+        id: final
+        run: python -B control/.github/registry_release.py preflight --policy control/.github/registry-policy.json --tag "$RELEASE_TAG"
+      - name: Publish once using the existing secret
+        if: steps.final.outputs.publish == 'true'
+        env:
+          REGISTRY_ACCESS_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+          SOURCE_SHA: ${{ needs.resolve.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$REGISTRY_ACCESS_TOKEN" ]; then
+            echo '::error::REGISTRY_ACCESS_TOKEN is not configured. No publication attempted.'
+            exit 1
+          fi
+          python -B control/.github/registry_release.py source --policy control/.github/registry-policy.json --tag "$RELEASE_TAG"
+          cd source
+          # Never retry: a failed upload can leave the version reserved.
+          comfy --skip-prompt --no-enable-telemetry node publish --token "$REGISTRY_ACCESS_TOKEN"
+      - name: Verify repacked ZIP and public package
+        if: steps.final.outputs.publish == 'true'
+        run: |
+          python -B control/.github/registry_release.py audit --policy control/.github/registry-policy.json --tag "$RELEASE_TAG"
+          python -B control/.github/registry_release.py public --policy control/.github/registry-policy.json --tag "$RELEASE_TAG"

@@ -1,0 +1,9 @@
+{
+  "node": "anima-regional-canvas",
+  "publisher": "ukr8b3g-cmyk",
+  "repository": "https://github.com/ukr8b3g-cmyk/Anima_Regional_Canvas",
+  "includes": [],
+  "license": {
+    "file": "LICENSE"
+  }
+}
