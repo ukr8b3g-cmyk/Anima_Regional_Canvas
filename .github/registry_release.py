@@ -27,7 +27,7 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def get_json(url, token=None, absent=False):
+def get_json(url, token=None, absent=False, node_absent=False):
     headers = {"Accept": "application/json", "Cache-Control": "no-cache"}
     if token:
         require(url.startswith("https://api.github.com/"), "Wrong credential destination")
@@ -38,7 +38,9 @@ def get_json(url, token=None, absent=False):
             return json.load(response)
     except urllib.error.HTTPError as error:
         if absent and error.code == 404:
-            require(json.load(error) == {}, "Unexpected Registry absence response")
+            body = json.load(error)
+            require(body == {} or (node_absent and body == {"error": "", "message": "Node not found"}),
+                    "Unexpected Registry absence response")
             return None
         raise ValueError("API request failed with HTTP " + str(error.code)) from None
 
@@ -96,7 +98,7 @@ def resolve_release(policy, tag, require_published=True):
 
 def registry_preflight(policy, version):
     base = "https://api.comfy.org/nodes/" + policy["node"]
-    node = get_json(base, absent=True)
+    node = get_json(base, absent=True, node_absent=True)
     if node is not None:
         require(node["id"] == policy["node"] and node["publisher"]["id"] == policy["publisher"],
                 "Existing Registry node belongs to another publisher")

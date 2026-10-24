@@ -57,6 +57,33 @@ class APIAndReleaseTests(unittest.TestCase):
                 with self.assertRaises((ValueError, json.JSONDecodeError)):
                     release.get_json("https://api.comfy.org/test", absent=True)
 
+    def test_node_not_found_is_absent_only_for_node_lookup(self):
+        body = b'{"error":"","message":"Node not found"}'
+        for node_absent in (False, True):
+            error = urllib.error.HTTPError("url", 404, "missing", {}, io.BytesIO(body))
+            with self.subTest(node_absent=node_absent), patch.object(release.urllib.request, "urlopen", side_effect=error):
+                if node_absent:
+                    self.assertIsNone(release.get_json("https://api.comfy.org/nodes/example-node", absent=True, node_absent=True))
+                else:
+                    with self.assertRaises(ValueError):
+                        release.get_json("https://api.comfy.org/nodes/example-node/versions/1.2.3", absent=True)
+
+    def test_unexpected_node_lookup_errors_are_not_absence(self):
+        for status, body in [(404, b'{"error":"denied","message":"Node not found"}'),
+                             (404, b'{"error":"","message":"Forbidden"}'),
+                             (401, b'{"error":"","message":"Node not found"}'),
+                             (503, b'{"error":"","message":"Node not found"}')]:
+            error = urllib.error.HTTPError("url", status, "failed", {}, io.BytesIO(body))
+            with self.subTest(status=status, body=body), patch.object(release.urllib.request, "urlopen", side_effect=error):
+                with self.assertRaises(ValueError):
+                    release.get_json("https://api.comfy.org/nodes/example-node", absent=True, node_absent=True)
+
+    def test_first_registration_accepts_official_missing_node_response(self):
+        node_error = urllib.error.HTTPError("url", 404, "missing", {}, io.BytesIO(b'{"error":"","message":"Node not found"}'))
+        version_error = urllib.error.HTTPError("url", 404, "missing", {}, io.BytesIO(b"{}"))
+        with patch.object(release.urllib.request, "urlopen", side_effect=[node_error, version_error]):
+            self.assertTrue(release.registry_preflight(POLICY, "1.2.3"))
+
     def test_network_failure_propagates(self):
         with patch.object(release.urllib.request, "urlopen", side_effect=urllib.error.URLError("offline")):
             with self.assertRaises(urllib.error.URLError):
