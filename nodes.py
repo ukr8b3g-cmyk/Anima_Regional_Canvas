@@ -236,15 +236,24 @@ def _extract_masks(image, threshold=0.15):
     return masks
 
 
+def _prompt_value(kwargs, name, default=""):
+    # Empty strings are explicit values; only absent/None inputs fall back.
+    external = kwargs.get(f"{name}_in")
+    if external is not None:
+        return external
+    local = kwargs.get(name)
+    return default if local is None else local
+
+
 def _prompts(kwargs):
-    legacy_base = kwargs.get("base_prompt_in") or kwargs.get("base_prompt") or ""
+    legacy_base = _prompt_value(kwargs, "base_prompt")
     result = {
-        "quality": kwargs.get("quality_prompt_in") or kwargs.get("quality_prompt") or legacy_base,
-        "scene": kwargs.get("scene_prompt_in") or kwargs.get("scene_prompt") or "",
-        "negative": kwargs.get("negative_prompt_in") or kwargs.get("negative_prompt") or "",
+        "quality": _prompt_value(kwargs, "quality_prompt", legacy_base),
+        "scene": _prompt_value(kwargs, "scene_prompt"),
+        "negative": _prompt_value(kwargs, "negative_prompt"),
     }
     for key, label, _ in REGIONS:
-        result[key] = kwargs.get(f"{key}_prompt_in") or kwargs.get(f"{key}_prompt") or ""
+        result[key] = _prompt_value(kwargs, f"{key}_prompt")
     return result
 
 
@@ -273,14 +282,15 @@ def _region_prompt_text(prompts, key):
 
 
 def _conditioning(clip, prompts, masks, strength, enabled=True):
-    global_text = _global_prompt_text(prompts) or _positive_prompt_text(prompts)
+    global_text = _global_prompt_text(prompts)
 
     if not enabled:
-        positive = _encode_text(clip, _positive_prompt_text(prompts) or global_text)
+        positive = _encode_text(clip, _positive_prompt_text(prompts))
         negative = _encode_text(clip, prompts["negative"])
         return positive, negative
 
-    positive = _set_default(_encode_text(clip, global_text))
+    global_conditioning = _encode_text(clip, global_text)
+    positive = _set_default(global_conditioning)
     active_regions = 0
     for key, _, _ in REGIONS:
         text = prompts[key].strip()
@@ -293,7 +303,7 @@ def _conditioning(clip, prompts, masks, strength, enabled=True):
         active_regions += 1
 
     if active_regions == 0:
-        positive = _encode_text(clip, global_text)
+        positive = global_conditioning
 
     negative = _encode_text(clip, prompts["negative"])
     return positive, negative

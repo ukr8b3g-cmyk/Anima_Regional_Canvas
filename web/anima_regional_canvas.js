@@ -523,6 +523,7 @@ app.registerExtension({
         return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
       }
       function downloadMaskCanvas() {
+        if (pendingRestorePayload !== null) return;
         saveData();
         const filename = `anima_regional_canvas_${timestamp()}_${maskCanvas.width}x${maskCanvas.height}.png`;
         downloadCanvasAs(filename, "image/png");
@@ -553,10 +554,17 @@ app.registerExtension({
       function loadCanvasFile(file) {
         if (!file) return;
         if (!file.type?.startsWith("image/")) return;
+        cancelImageLoads();
+        isRestoringCanvas = false;
+        loadingCanvasFile = true;
+        const generation = imageLoadGeneration;
         const url = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => {
           try {
+            if (!currentImageLoad(generation)) return;
+            loadingCanvasFile = false;
+            pendingRestorePayload = null;
             pushHistory();
             const w = safeDimension(img.naturalWidth || img.width, 1024);
             const h = safeDimension(img.naturalHeight || img.height, 1024);
@@ -580,12 +588,16 @@ app.registerExtension({
             fitCanvas();
           } finally {
             URL.revokeObjectURL(url);
-            loadCanvasInput.value = "";
+            if (currentImageLoad(generation)) loadCanvasInput.value = "";
           }
         };
         img.onerror = () => {
           URL.revokeObjectURL(url);
-          loadCanvasInput.value = "";
+          if (currentImageLoad(generation)) {
+            loadingCanvasFile = false;
+            loadCanvasInput.value = "";
+            console.warn("Anima Regional Canvas: image could not be loaded; previous canvas data was kept.");
+          }
         };
         img.src = url;
       }
@@ -769,6 +781,23 @@ app.registerExtension({
       let canvasEdited = false;
       let hasCanvasContent = false;
       let isRestoringCanvas = false;
+      let imageLoadGeneration = 0;
+      let pendingInputImageKey = "";
+      let pendingRestorePayload = null;
+      let loadingCanvasFile = false;
+      let removed = false;
+      function cancelImageLoads(discardRestore = false) {
+        imageLoadGeneration += 1;
+        pendingInputImageKey = "";
+        loadingCanvasFile = false;
+        if (discardRestore) {
+          pendingRestorePayload = null;
+          isRestoringCanvas = false;
+        }
+      }
+      function currentImageLoad(generation) {
+        return !removed && generation === imageLoadGeneration;
+      }
       let lastDisplayStyle = { width: "", height: "" };
       let canvasResizeObserver = null;
       let splitResizeObserver = null;
@@ -800,6 +829,7 @@ app.registerExtension({
         };
       }
       function syncSizeWidgetsToCanvas() {
+        if (pendingRestorePayload !== null) return;
         if (widthW && canvas.width) widthW.value = canvas.width;
         if (heightW && canvas.height) heightW.value = canvas.height;
         if (canvasWNum && canvas.width && document.activeElement !== canvasWNum) canvasWNum.value = canvas.width;
@@ -807,6 +837,7 @@ app.registerExtension({
         if (sizeLabel && canvas.width && canvas.height) sizeLabel.textContent = `Current Canvas ${canvas.width} x ${canvas.height}`;
       }
       function syncCanvasSize(keep = false, force = false) {
+        if (removed || pendingRestorePayload !== null) return;
         const { w, h } = dims();
         if (!force && w === lastWidth && h === lastHeight && canvas.width === w && canvas.height === h) return;
         resizeCanvasPreserve(w, h, keep);
@@ -819,6 +850,13 @@ app.registerExtension({
         }, 120);
       }
       function saveData(options = {}) {
+        if (removed) return;
+        // Queue and workflow serialization may run before image decode completes.
+        if (pendingRestorePayload !== null) {
+          if (canvasData) canvasData.value = pendingRestorePayload;
+          delete node.properties.arcCanvasData;
+          return;
+        }
         const painted = maskHasPaint();
         markCanvasSizeInitialized();
         const payload = JSON.stringify({
@@ -866,6 +904,8 @@ app.registerExtension({
         return clone;
       }
       function resizeCanvasPreserve(w, h, keep = true) {
+        if (removed || pendingRestorePayload !== null) return;
+        cancelImageLoads();
         w = safeDimension(w, canvas.width || lastWidth || 1024);
         h = safeDimension(h, canvas.height || lastHeight || 1024);
         const oldDisplay = keep ? cloneCanvas(canvas) : null;
@@ -892,6 +932,7 @@ app.registerExtension({
         saveData();
       }
       function resizeFromToolbar() {
+        if (pendingRestorePayload !== null) return;
         const w = safeDimension(canvasWNum.value, canvas.width || lastWidth || 1024);
         const h = safeDimension(canvasHNum.value, canvas.height || lastHeight || 1024);
         canvasWNum.value = String(w);
@@ -961,15 +1002,24 @@ app.registerExtension({
         return src ? { url: src, key: `${originId}:${src}` } : null;
       }
       function loadConnectedImage(force = false) {
+        if (removed || drawing) return;
         const source = connectedImageSource();
-        if (!source) return;
+        if (pendingInputImageKey && pendingInputImageKey !== source?.key) cancelImageLoads();
+        if (!source || pendingRestorePayload !== null || loadingCanvasFile) return;
         if (!force && source.key === lastInputImageKey) return;
+        if (!force && source.key === pendingInputImageKey) return;
         if (isRestoringCanvas || !visibleCanvasBox()) return;
 
+        cancelImageLoads();
+        const generation = imageLoadGeneration;
+        pendingInputImageKey = source.key;
         const img = new Image();
         img.onload = () => {
-          const oldMask = !force ? cloneCanvas(maskCanvas) : null;
-          const hadPaint = !force && maskHasPaint();
+          if (!currentImageLoad(generation)) return;
+          pendingInputImageKey = "";
+          if (drawing || connectedImageSource()?.key !== source.key) return;
+          const oldMask = cloneCanvas(maskCanvas);
+          const hadPaint = maskHasPaint();
           const w = safeDimension(img.naturalWidth || img.width, 1024);
           const h = safeDimension(img.naturalHeight || img.height, 1024);
           if (widthW) widthW.value = w;
@@ -995,6 +1045,9 @@ app.registerExtension({
           hasCanvasContent = hasCanvasContent || canvasEdited;
           fitCanvas();
           saveData();
+        };
+        img.onerror = () => {
+          if (currentImageLoad(generation)) pendingInputImageKey = "";
         };
         img.src = source.url;
       }
@@ -1077,9 +1130,11 @@ app.registerExtension({
           return;
         }
         if (ev.button !== 0) return;
+        if (removed || pendingRestorePayload !== null) return;
         ev.preventDefault();
         ev.stopPropagation();
         canvas.setPointerCapture(ev.pointerId);
+        cancelImageLoads();
         pushHistory();
         canvasEdited = true;
         drawing = true;
@@ -1098,7 +1153,7 @@ app.registerExtension({
           syncOpacity(brushAdjust.opacity - dy / 200);
           return;
         }
-        if (!drawing) return;
+        if (!drawing || removed || pendingRestorePayload !== null) return;
         ev.preventDefault();
         const p = eventPoint(ev);
         drawSmooth(lastPoint || p, p);
@@ -1122,8 +1177,10 @@ app.registerExtension({
       canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
 
       undo.addEventListener("click", () => {
+        if (removed || pendingRestorePayload !== null) return;
         const prev = history.pop();
         if (!prev) return;
+        cancelImageLoads();
         historyBytes = Math.max(0, historyBytes - Number(prev.bytes || 0));
         if (canvas.width !== prev.width || canvas.height !== prev.height) {
           lastWidth = prev.width;
@@ -1146,6 +1203,10 @@ app.registerExtension({
         saveData();
       });
       clear.addEventListener("click", () => {
+        if (removed) return;
+        cancelImageLoads(true);
+        drawing = false;
+        lastPoint = null;
         pushHistory();
         canvasEdited = false;
         hasCanvasContent = false;
@@ -1162,9 +1223,17 @@ app.registerExtension({
         try {
           const payload = JSON.parse(payloadText);
           if (!payload?.data_url) return false;
+          cancelImageLoads(true);
+          const generation = imageLoadGeneration;
+          pendingRestorePayload = payloadText;
+          isRestoringCanvas = true;
+          const fallback = dims();
+          if (widthW) widthW.value = safeDimension(payload.width, fallback.w);
+          if (heightW) heightW.value = safeDimension(payload.height, fallback.h);
+          saveData();
           const img = new Image();
           img.onload = () => {
-            isRestoringCanvas = true;
+            if (!currentImageLoad(generation)) return;
             try {
               const fallback = dims();
               const w = safeDimension(payload.width || img.naturalWidth || img.width, fallback.w);
@@ -1183,11 +1252,19 @@ app.registerExtension({
               maskCtx.drawImage(img, 0, 0, w, h);
               canvasEdited = maskHasPaint();
               hasCanvasContent = canvasEdited;
+              pendingRestorePayload = null;
               fitCanvas();
               saveData({ forceBackup: canvasEdited });
+            } catch (error) {
+              console.warn("Anima Regional Canvas: canvas restore failed; saved data was kept. Retry Load Canvas or Clear.", error);
             } finally {
               isRestoringCanvas = false;
             }
+          };
+          img.onerror = () => {
+            if (!currentImageLoad(generation)) return;
+            isRestoringCanvas = false;
+            console.warn("Anima Regional Canvas: canvas restore failed; saved data was kept. Retry Load Canvas or Clear.");
           };
           img.src = payload.data_url;
           return true;
@@ -1210,7 +1287,7 @@ app.registerExtension({
       let sourcePoll = null;
       const pollConnectedImage = () => {
         sourcePoll = null;
-        if (!node.graph) return;
+        if (removed || !node.graph) return;
         if (document.visibilityState === "visible" && visibleCanvasBox()) loadConnectedImage(false);
         sourcePoll = setTimeout(pollConnectedImage, SOURCE_REFRESH_MS);
       };
@@ -1236,9 +1313,14 @@ app.registerExtension({
       };
 
       const oldConnectionsChange = node.onConnectionsChange;
-      node.onConnectionsChange = function () {
+      node.onConnectionsChange = function (type, slot) {
+        if (type === 1 && node.inputs?.[slot]?.name === "image") {
+          if (pendingInputImageKey) cancelImageLoads();
+          lastInputImageKey = "";
+        }
         oldConnectionsChange?.apply(this, arguments);
         requestAnimationFrame(() => {
+          if (removed) return;
           syncPromptInputModes();
           loadConnectedImage(false);
         });
@@ -1246,6 +1328,9 @@ app.registerExtension({
 
       const oldConfigure = node.onConfigure;
       node.onConfigure = function () {
+        cancelImageLoads(true);
+        drawing = false;
+        lastPoint = null;
         const workflowInfo = arguments[0] || {};
         const workflowProperties = workflowInfo.properties || {};
         const legacyCanvasData = Object.prototype.hasOwnProperty.call(workflowProperties, "arcCanvasData")
@@ -1326,6 +1411,9 @@ app.registerExtension({
       const originalRemoved = node.onRemoved;
       node.onRemoved = function () {
         saveData();
+        removed = true;
+        cancelImageLoads(true);
+        if (resizeTimer) clearTimeout(resizeTimer);
         if (sourcePoll) clearTimeout(sourcePoll);
         history.length = 0;
         historyBytes = 0;

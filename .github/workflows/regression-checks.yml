@@ -23,3 +23,5 @@ jobs:
         run: node --check web/anima_regional_canvas.js
       - name: Frontend contract
         run: node tests/test_frontend_contract.mjs
+      - name: Canvas lifecycle regression
+        run: node --test tests/test_canvas_lifecycle.mjs
